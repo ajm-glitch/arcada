@@ -9,22 +9,22 @@
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Mono:ital,wght@0,300;0,400;1,300&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;1,9..144,300&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #04100f;
-    --bg2: #081a18;
-    --bg3: #0b2320;
-    --surface: #0f2e2a;
-    --surface2: #163830;
-    --teal: #1dcfaa;
-    --teal-dim: #0f6e56;
-    --teal-glow: rgba(29,207,170,0.12);
-    --teal-glow2: rgba(29,207,170,0.06);
-    --amber: #ef9f27;
-    --amber-dim: rgba(239,159,39,0.15);
-    --text: #d4ede8;
-    --text2: #7bada4;
-    --text3: #3d6e67;
-    --border: rgba(29,207,170,0.15);
-    --border2: rgba(29,207,170,0.08);
+    --bg: #020817;
+    --bg2: #06122a;
+    --bg3: #0a1a3a;
+    --surface: #0d2147;
+    --surface2: #123061;
+    --teal: #4ea1ff;
+    --teal-dim: #1d4ed8;
+    --teal-glow: rgba(78,161,255,0.14);
+    --teal-glow2: rgba(78,161,255,0.07);
+    --amber: #7dd3fc;
+    --amber-dim: rgba(125,211,252,0.16);
+    --text: #dbeafe;
+    --text2: #93c5fd;
+    --text3: #426b9f;
+    --border: rgba(78,161,255,0.18);
+    --border2: rgba(78,161,255,0.09);
     --red: #E24B4A;
   }
 
@@ -77,7 +77,7 @@
     align-items: center;
     justify-content: space-between;
     border-bottom: 1px solid var(--border2);
-    background: rgba(4,16,15,0.85);
+    background: rgba(2,8,23,0.88);
     backdrop-filter: blur(12px);
   }
 
@@ -128,8 +128,8 @@
     inset: 0;
     background: 
       radial-gradient(ellipse 80% 60% at 50% 110%, rgba(15,110,86,0.25) 0%, transparent 70%),
-      radial-gradient(ellipse 60% 40% at 20% 80%, rgba(29,207,170,0.06) 0%, transparent 60%),
-      radial-gradient(ellipse 50% 30% at 80% 70%, rgba(239,159,39,0.04) 0%, transparent 60%);
+      radial-gradient(ellipse 60% 40% at 20% 80%, rgba(78,161,255,0.07) 0%, transparent 60%),
+      radial-gradient(ellipse 50% 30% at 80% 70%, rgba(125,211,252,0.05) 0%, transparent 60%);
     pointer-events: none;
   }
 
@@ -231,7 +231,7 @@
   .btn-primary:hover {
     background: #fff;
     transform: translateY(-2px);
-    box-shadow: 0 8px 30px rgba(29,207,170,0.3);
+    box-shadow: 0 8px 30px rgba(78,161,255,0.34);
   }
 
   .btn-secondary {
@@ -619,7 +619,7 @@
     position: absolute;
     top: 0; left: 0; right: 0;
     height: 2px;
-    background: linear-gradient(90deg, var(--teal), rgba(29,207,170,0.2));
+    background: linear-gradient(90deg, var(--teal), rgba(78,161,255,0.22));
   }
 
   .feature-icon {
@@ -928,7 +928,7 @@
   }
 
   .inst-tag.api { color: var(--teal); border-color: var(--teal-dim); }
-  .inst-tag.html { color: var(--amber); border-color: rgba(239,159,39,0.3); }
+  .inst-tag.html { color: var(--amber); border-color: rgba(125,211,252,0.3); }
 
   .legend {
     display: flex;
@@ -1166,7 +1166,7 @@
   </p>
 
   <div class="hero-cta">
-    <a href="#demo" class="btn-primary">Try the Interface</a>
+    <a href="#demo" class="btn-primary">Access Data</a>
     <a href="#approach" class="btn-secondary">How It Works</a>
   </div>
 
@@ -1468,61 +1468,61 @@
         <!-- Simplified Cascadia margin SVG map -->
         <svg viewBox="0 0 340 260" xmlns="http://www.w3.org/2000/svg">
           <!-- Ocean background -->
-          <rect width="340" height="260" fill="#04100f"/>
+          <rect width="340" height="260" fill="#020817"/>
 
           <!-- Coastline rough shape (Oregon/Washington coast) -->
           <path d="M 260 0 L 265 30 L 255 50 L 260 80 L 250 110 L 255 140 L 248 170 L 252 200 L 246 230 L 250 260 L 340 260 L 340 0 Z"
-            fill="#0f2e2a" stroke="rgba(29,207,170,0.2)" stroke-width="0.5"/>
+            fill="#0d2147" stroke="rgba(78,161,255,0.22)" stroke-width="0.5"/>
 
           <!-- Land label -->
-          <text x="295" y="130" font-family="'DM Mono',monospace" font-size="9" fill="rgba(29,207,170,0.4)" letter-spacing="1">LAND</text>
+          <text x="295" y="130" font-family="'DM Mono',monospace" font-size="9" fill="rgba(78,161,255,0.4)" letter-spacing="1">LAND</text>
 
           <!-- Juan de Fuca Ridge (simplified) -->
           <path d="M 30 20 L 35 60 L 28 100 L 32 140 L 25 180 L 30 220"
-            stroke="rgba(239,159,39,0.5)" stroke-width="1.5" fill="none" stroke-dasharray="4,3"/>
-          <text x="5" y="130" font-family="'DM Mono',monospace" font-size="6" fill="rgba(239,159,39,0.5)" letter-spacing="0.5">JdF RIDGE</text>
+            stroke="rgba(125,211,252,0.5)" stroke-width="1.5" fill="none" stroke-dasharray="4,3"/>
+          <text x="5" y="130" font-family="'DM Mono',monospace" font-size="6" fill="rgba(125,211,252,0.5)" letter-spacing="0.5">JdF RIDGE</text>
 
           <!-- Cascadia Subduction Zone -->
           <path d="M 200 0 L 205 40 L 198 80 L 202 120 L 195 160 L 200 200 L 195 240"
             stroke="rgba(226,75,74,0.35)" stroke-width="1" fill="none" stroke-dasharray="6,3"/>
 
           <!-- Grid lines (depth contours) -->
-          <line x1="0" y1="87" x2="340" y2="87" stroke="rgba(29,207,170,0.06)" stroke-width="0.5"/>
-          <line x1="0" y1="173" x2="340" y2="173" stroke="rgba(29,207,170,0.06)" stroke-width="0.5"/>
-          <line x1="85" y1="0" x2="85" y2="260" stroke="rgba(29,207,170,0.06)" stroke-width="0.5"/>
-          <line x1="170" y1="0" x2="170" y2="260" stroke="rgba(29,207,170,0.06)" stroke-width="0.5"/>
+          <line x1="0" y1="87" x2="340" y2="87" stroke="rgba(78,161,255,0.07)" stroke-width="0.5"/>
+          <line x1="0" y1="173" x2="340" y2="173" stroke="rgba(78,161,255,0.07)" stroke-width="0.5"/>
+          <line x1="85" y1="0" x2="85" y2="260" stroke="rgba(78,161,255,0.07)" stroke-width="0.5"/>
+          <line x1="170" y1="0" x2="170" y2="260" stroke="rgba(78,161,255,0.07)" stroke-width="0.5"/>
 
           <!-- Axial Seamount -->
-          <circle cx="95" cy="105" r="10" fill="rgba(239,159,39,0.15)" stroke="rgba(239,159,39,0.6)" stroke-width="1"/>
-          <circle cx="95" cy="105" r="3" fill="rgba(239,159,39,0.8)"/>
-          <text x="110" y="102" font-family="'DM Mono',monospace" font-size="7" fill="#ef9f27">Axial Seamount</text>
-          <text x="110" y="112" font-family="'DM Mono',monospace" font-size="6" fill="rgba(239,159,39,0.5)">~1520m · volcano</text>
+          <circle cx="95" cy="105" r="10" fill="rgba(125,211,252,0.16)" stroke="rgba(125,211,252,0.6)" stroke-width="1"/>
+          <circle cx="95" cy="105" r="3" fill="rgba(125,211,252,0.85)"/>
+          <text x="110" y="102" font-family="'DM Mono',monospace" font-size="7" fill="#7dd3fc">Axial Seamount</text>
+          <text x="110" y="112" font-family="'DM Mono',monospace" font-size="6" fill="rgba(125,211,252,0.5)">~1520m · volcano</text>
 
           <!-- Southern Hydrate Ridge -->
-          <circle cx="185" cy="155" r="6" fill="rgba(29,207,170,0.15)" stroke="rgba(29,207,170,0.7)" stroke-width="1"/>
+          <circle cx="185" cy="155" r="6" fill="rgba(78,161,255,0.16)" stroke="rgba(78,161,255,0.7)" stroke-width="1"/>
           <circle cx="185" cy="155" r="2.5" fill="var(--teal)"/>
-          <text x="197" y="152" font-family="'DM Mono',monospace" font-size="7" fill="#1dcfaa">Hydrate Ridge</text>
-          <text x="197" y="162" font-family="'DM Mono',monospace" font-size="6" fill="rgba(29,207,170,0.5)">~780m · CH₄ seeps</text>
+          <text x="197" y="152" font-family="'DM Mono',monospace" font-size="7" fill="#4ea1ff">Hydrate Ridge</text>
+          <text x="197" y="162" font-family="'DM Mono',monospace" font-size="6" fill="rgba(78,161,255,0.5)">~780m · CH₄ seeps</text>
 
           <!-- Slope Base -->
-          <circle cx="215" cy="190" r="5" fill="rgba(29,207,170,0.1)" stroke="rgba(29,207,170,0.5)" stroke-width="1"/>
-          <circle cx="215" cy="190" r="2" fill="rgba(29,207,170,0.6)"/>
-          <text x="225" y="187" font-family="'DM Mono',monospace" font-size="7" fill="rgba(29,207,170,0.7)">Slope Base</text>
-          <text x="225" y="197" font-family="'DM Mono',monospace" font-size="6" fill="rgba(29,207,170,0.4)">~580m</text>
+          <circle cx="215" cy="190" r="5" fill="rgba(78,161,255,0.12)" stroke="rgba(78,161,255,0.5)" stroke-width="1"/>
+          <circle cx="215" cy="190" r="2" fill="rgba(78,161,255,0.6)"/>
+          <text x="225" y="187" font-family="'DM Mono',monospace" font-size="7" fill="rgba(78,161,255,0.7)">Slope Base</text>
+          <text x="225" y="197" font-family="'DM Mono',monospace" font-size="6" fill="rgba(78,161,255,0.4)">~580m</text>
 
           <!-- Axial Base (deep) -->
-          <circle cx="105" cy="135" r="4" fill="rgba(29,207,170,0.1)" stroke="rgba(29,207,170,0.4)" stroke-width="0.5"/>
-          <circle cx="105" cy="135" r="1.5" fill="rgba(29,207,170,0.5)"/>
-          <text x="115" y="139" font-family="'DM Mono',monospace" font-size="6" fill="rgba(29,207,170,0.4)">Axial Base ·1528m</text>
+          <circle cx="105" cy="135" r="4" fill="rgba(78,161,255,0.12)" stroke="rgba(78,161,255,0.4)" stroke-width="0.5"/>
+          <circle cx="105" cy="135" r="1.5" fill="rgba(78,161,255,0.5)"/>
+          <text x="115" y="139" font-family="'DM Mono',monospace" font-size="6" fill="rgba(78,161,255,0.4)">Axial Base ·1528m</text>
 
           <!-- Cable lines -->
-          <path d="M 95 105 L 105 135 L 185 155 L 215 190" stroke="rgba(29,207,170,0.2)" stroke-width="0.5" fill="none" stroke-dasharray="3,3"/>
+          <path d="M 95 105 L 105 135 L 185 155 L 215 190" stroke="rgba(78,161,255,0.22)" stroke-width="0.5" fill="none" stroke-dasharray="3,3"/>
 
           <!-- Oregon coast label -->
-          <text x="266" y="20" font-family="'Syne',sans-serif" font-size="8" fill="rgba(29,207,170,0.25)" letter-spacing="2">OREGON</text>
+          <text x="266" y="20" font-family="'Syne',sans-serif" font-size="8" fill="rgba(78,161,255,0.24)" letter-spacing="2">OREGON</text>
 
           <!-- Depth indicator -->
-          <text x="8" y="248" font-family="'DM Mono',monospace" font-size="6" fill="rgba(29,207,170,0.25)">←— 130°W ———— 125°W —→</text>
+          <text x="8" y="248" font-family="'DM Mono',monospace" font-size="6" fill="rgba(78,161,255,0.24)">←— 130°W ———— 125°W —→</text>
         </svg>
       </div>
     </div>
