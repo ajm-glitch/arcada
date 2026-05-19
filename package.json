@@ -1,0 +1,12 @@
+{
+  "name": "arcada",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "index": "node scripts/build-index.mjs"
+  },
+  "dependencies": {
+    "minisearch": "^7.1.0"
+  }
+}

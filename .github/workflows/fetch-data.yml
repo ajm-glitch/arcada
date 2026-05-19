@@ -1,0 +1,44 @@
+name: Fetch Data
+
+on:
+  workflow_dispatch:
+    inputs:
+      plan:
+        description: "JSON data plan from aRCADA Worker /plan endpoint"
+        required: true
+        type: string
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r data-pulls/requirements.txt
+
+      - name: Run dispatcher
+        env:
+          ARCADA_PLAN:  ${{ inputs.plan }}
+          OOI_USERNAME: ${{ secrets.OOI_USERNAME }}
+          OOI_TOKEN:    ${{ secrets.OOI_TOKEN }}
+        run: |
+          mkdir -p /tmp/arcada_out
+          python data-pulls/dispatcher.py \
+            --plan "$ARCADA_PLAN" \
+            --out /tmp/arcada_out
+
+      - name: Upload data artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: arcada-data
+          path: /tmp/arcada_out/
+          retention-days: 7
+          if-no-files-found: error

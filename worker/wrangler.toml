@@ -1,0 +1,13 @@
+name = "arcada-data-assistant"
+main = "src/index.js"
+compatibility_date = "2025-04-01"
+
+[vars]
+ALLOWED_ORIGIN = "https://ajm-glitch.github.io"
+
+# Secrets (set via: wrangler secret put <NAME>)
+# GEMINI_API_KEY
+# GITHUB_PAT          — fine-grained PAT with Actions: write on the arcada repo
+# GITHUB_REPO_OWNER   — e.g. ajm-glitch
+# GITHUB_REPO_NAME    — e.g. arcada
+# CHAT_PASSWORD       — optional frontend password gate
