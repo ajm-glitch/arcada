@@ -1,0 +1,53 @@
+{
+  "version": "1.0",
+  "description": "PI-operated instrument HTML page registry for aRCADA scraper",
+  "base_urls": {
+    "piweb_marum": "http://piweb.ooirsn.uw.edu/marum/data/",
+    "piweb_uw": "http://piweb.ooirsn.uw.edu/"
+  },
+  "instruments": [
+    {
+      "id": "PI-OVRSRA101",
+      "instrument_code": "OVRSRA101",
+      "name": "Hydrate Ridge Scanning Sonar",
+      "base_url": "http://piweb.ooirsn.uw.edu/marum/data/OVRSRA101/",
+      "index_type": "apache_directory",
+      "directory_pattern": "{YYYY}/{MM}/{YYYY-MM-DD_HH-MM-SS}/data/",
+      "file_extension": ".wc",
+      "file_format": "binary_text_mixed",
+      "encoding_variants": ["utf-8", "latin-1", "utf-16-le", "utf-16-be"],
+      "parse_strategy": "numeric_regex",
+      "numeric_regex": "[-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?",
+      "time_resolution": "per_burst",
+      "notes": "Data stored as burst files. Each directory is a measurement window. File size varies 1KB-50MB."
+    },
+    {
+      "id": "PI-MASSP-ASHES",
+      "instrument_code": "MASSP",
+      "name": "ASHES Seafloor Mass Spectrometer",
+      "base_url": "http://piweb.ooirsn.uw.edu/marum/data/MASSP/",
+      "index_type": "apache_directory",
+      "directory_pattern": "{YYYY}/{MM}/",
+      "file_extension": ".csv",
+      "file_format": "csv",
+      "encoding_variants": ["utf-8"],
+      "parse_strategy": "csv",
+      "time_resolution": "per_file",
+      "notes": "CSV files with dissolved gas concentrations. Column headers vary by deployment."
+    },
+    {
+      "id": "PI-RASSP",
+      "instrument_code": "RASSP",
+      "name": "Fluid and Gas Sampler (RASSP)",
+      "base_url": "http://piweb.ooirsn.uw.edu/marum/data/RASSP/",
+      "index_type": "apache_directory",
+      "directory_pattern": "{YYYY}/{MM}/",
+      "file_extension": ".txt",
+      "file_format": "text",
+      "encoding_variants": ["utf-8"],
+      "parse_strategy": "fixed_width_or_csv",
+      "time_resolution": "per_sample",
+      "notes": "Discrete fluid samples from Hydrate Ridge and ASHES. Contains geochemistry data."
+    }
+  ]
+}

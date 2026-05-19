@@ -1,0 +1,11 @@
+{
+  "embedModel": "gemini-embedding-001",
+  "embedDim": 3072,
+  "chunkWords": 300,
+  "overlapWords": 60,
+  "minChunkWords": 80,
+  "batchSize": 25,
+  "catalogPath": "./catalog/instruments.json",
+  "piPagesPath": "./catalog/pi-pages.json",
+  "outputDir": "./public"
+}

@@ -1,0 +1,5 @@
+GEMINI_API_KEY=your-google-ai-studio-key
+GITHUB_PAT=your-fine-grained-github-pat
+GITHUB_REPO_OWNER=ajm-glitch
+GITHUB_REPO_NAME=arcada
+CHAT_PASSWORD=optional-password-gate
