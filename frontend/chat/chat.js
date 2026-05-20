@@ -261,9 +261,16 @@ async function onSubmit(e) {
       }
     }
 
-    // 3. Build data plan
+    // 3. Build data plan — deduplicate context to base IDs only before sending
     setStatus("Building data plan…");
-    const { plan } = await workerPost("/plan", { query, context, catalog: INSTRUMENT_CATALOG });
+    const seenPlan = new Set();
+    const planContext = context.filter(c => {
+      const base = c.id.replace(/::.*$/, "");
+      if (seenPlan.has(base)) return false;
+      seenPlan.add(base);
+      return true;
+    });
+    const { plan } = await workerPost("/plan", { query, context: planContext, catalog: INSTRUMENT_CATALOG });
 
     if (plan?.instruments?.length) {
       const planEl = addMessage("assistant", "");

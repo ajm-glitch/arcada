@@ -106,7 +106,7 @@ async function handlePlan(req, env) {
 
   const instrSummary = instrChunks.length
     ? instrChunks.map(c =>
-        `ID: ${c.id}\nName: ${c.title || c.name}\nType: ${c.type}\nSource: ${c.source}\nLocation: ${c.location || ""}\nContext: ${c.text}`
+        `ID: ${c.id.replace(/::.*$/, "")}\nName: ${c.title || c.name}\nType: ${c.type}\nSource: ${c.source}\nLocation: ${c.location || ""}\nContext: ${c.text}`
       ).join("\n\n")
     : "No instruments retrieved — use the catalog below.";
 
@@ -179,10 +179,11 @@ Return ONLY valid JSON with this exact structure:
   if (plan.instruments) {
     plan.instruments = plan.instruments
       .map(inst => {
-        const known = validInstruments.get(inst.id);
+        const baseId = inst.id.replace(/::.*$/, "");
+        const known = validInstruments.get(baseId) ?? validInstruments.get(inst.id);
         if (!known) return null; // drop hallucinated IDs
-        // Correct source if Gemini got it wrong
-        return { ...inst, source: known.source ?? inst.source };
+        // Correct source if Gemini got it wrong; normalize to base ID
+        return { ...inst, id: baseId, source: known.source ?? inst.source };
       })
       .filter(Boolean);
   }
