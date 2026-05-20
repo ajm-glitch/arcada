@@ -63,7 +63,7 @@ async function boot() {
   miniSearch = new MiniSearch({
     idField: "miniSearchId",
     fields: ["title", "text", "keywords", "type", "location"],
-    storeFields: ["id", "title", "type", "source", "location"],
+    storeFields: ["miniSearchId", "id", "title", "type", "source", "location"],
     searchOptions: { boost: { title: 2, keywords: 1.5 }, fuzzy: 0.2 },
   });
   miniSearch.addAll(
@@ -86,7 +86,7 @@ async function boot() {
 
 function bm25Search(query, k = 10) {
   return miniSearch.search(query).slice(0, k).map(r => {
-    return { idx: r.id, score: r.score };
+    return { idx: r.miniSearchId, score: r.score };
   });
 }
 
