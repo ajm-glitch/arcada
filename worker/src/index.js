@@ -64,7 +64,9 @@ async function handleChat(req, env) {
   if (!query) return new Response("Missing query", { status: 400 });
 
   const contextBlock = context?.length
-    ? `\n\nRelevant instrument catalog context:\n${context.map(c => `- ${c.name}: ${c.description}`).join("\n")}`
+    ? `\n\nRelevant context from the instrument catalog and research literature:\n${
+        context.map(c => `[${c.type ?? "instrument"}] ${c.title ?? c.name}: ${c.text}`).join("\n\n")
+      }`
     : "";
 
   const geminiReq = {
@@ -89,21 +91,51 @@ async function handleChat(req, env) {
 // ── /plan ─────────────────────────────────────────────────────────────────────
 // Converts a plain-language query + instrument context into a structured data plan
 async function handlePlan(req, env) {
-  const { query, context } = await req.json();
+  const { query, context, catalog } = await req.json();
   if (!query) return new Response("Missing query", { status: 400 });
 
-  const contextSummary = (context || [])
-    .map(c => `ID: ${c.id}\nName: ${c.name}\nType: ${c.type}\nSource: ${c.source}\nDescription: ${c.description}`)
-    .join("\n\n");
+  // Separate instrument chunks from reference material (papers, site context)
+  const REFERENCE_TYPES = new Set(["paper", "site-context"]);
+  const instrChunks = (context || []).filter(c => !REFERENCE_TYPES.has(c.type));
+  const refChunks   = (context || []).filter(c =>  REFERENCE_TYPES.has(c.type));
+
+  // Build a map of valid instrument IDs from the catalog for post-plan validation
+  const validInstruments = new Map(
+    (catalog || []).map(c => [c.id, c])
+  );
+
+  const instrSummary = instrChunks.length
+    ? instrChunks.map(c =>
+        `ID: ${c.id}\nName: ${c.title || c.name}\nType: ${c.type}\nSource: ${c.source}\nLocation: ${c.location || ""}\nContext: ${c.text}`
+      ).join("\n\n")
+    : "No instruments retrieved — use the catalog below.";
+
+  const refSummary = refChunks.length
+    ? refChunks.map(c => `- ${c.title}: ${c.text.slice(0, 300)}`).join("\n")
+    : "";
+
+  const catalogSummary = validInstruments.size
+    ? [...validInstruments.values()].map(c =>
+        `${c.id} | ${c.title || c.name} | type:${c.type} | source:${c.source}`
+      ).join("\n")
+    : "";
 
   const planPrompt = `${SYSTEM_PROMPT}
 
-Based on the following user request and instrument catalog context, produce a structured JSON data plan.
+Based on the following user request, produce a structured JSON data plan.
 
 User request: "${query}"
 
-Available instruments (from semantic search):
-${contextSummary || "No pre-filtered context provided — use your knowledge of RCA instruments."}
+INSTRUMENTS RETRIEVED (ranked by relevance — pick from these first):
+${instrSummary}
+
+${refSummary ? `SCIENCE CONTEXT (papers and background — do NOT use these IDs as instruments):
+${refSummary}
+
+` : ""}${catalogSummary ? `FULL INSTRUMENT CATALOG (authoritative — all valid instrument IDs):
+${catalogSummary}
+
+` : ""}You MUST only use instrument IDs that appear in the catalog above. Do not invent IDs.
 
 Return ONLY valid JSON with this exact structure:
 {
@@ -142,6 +174,18 @@ Return ONLY valid JSON with this exact structure:
   let plan;
   try { plan = JSON.parse(raw); }
   catch { return new Response(JSON.stringify({ error: "Failed to parse plan", raw }), { status: 500 }); }
+
+  // Validate and fix instrument IDs against the catalog
+  if (plan.instruments) {
+    plan.instruments = plan.instruments
+      .map(inst => {
+        const known = validInstruments.get(inst.id);
+        if (!known) return null; // drop hallucinated IDs
+        // Correct source if Gemini got it wrong
+        return { ...inst, source: known.source ?? inst.source };
+      })
+      .filter(Boolean);
+  }
 
   return Response.json({ plan }, { headers: cors(env) });
 }

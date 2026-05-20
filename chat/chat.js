@@ -11,6 +11,7 @@ let EMBED_DIM  = 768;
 let miniSearch = null;
 let WORKER_URL = "";
 let PASSWORD   = "";
+let INSTRUMENT_CATALOG = []; // deduplicated instrument-only chunks for /plan validation
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 
@@ -60,10 +61,21 @@ async function boot() {
       .then(buf => new Float32Array(buf)),
   ]);
 
+  // Build deduplicated instrument catalog for /plan validation (exclude paper/site-context chunks)
+  const REFERENCE_TYPES = new Set(["paper", "site-context"]);
+  const seenIds = new Set();
+  INSTRUMENT_CATALOG = CHUNKS.filter(c => {
+    if (REFERENCE_TYPES.has(c.type)) return false;
+    const baseId = c.id.replace(/::.*$/, ""); // strip ::desc / ::params suffixes
+    if (seenIds.has(baseId)) return false;
+    seenIds.add(baseId);
+    return true;
+  });
+
   miniSearch = new MiniSearch({
     idField: "miniSearchId",
     fields: ["title", "text", "keywords", "type", "location"],
-    storeFields: ["miniSearchId", "id", "title", "type", "source", "location"],
+    storeFields: ["title", "type", "source", "location"],
     searchOptions: { boost: { title: 2, keywords: 1.5 }, fuzzy: 0.2 },
   });
   miniSearch.addAll(
@@ -86,7 +98,7 @@ async function boot() {
 
 function bm25Search(query, k = 10) {
   return miniSearch.search(query).slice(0, k).map(r => {
-    return { idx: r.miniSearchId, score: r.score };
+    return { idx: r.id, score: r.score };
   });
 }
 
@@ -121,7 +133,8 @@ function hybridFuse(bm25, semantic, k = CONFIG.topK || 6) {
   return [...map.entries()]
     .sort((a, b) => b[1] - a[1])
     .slice(0, k)
-    .map(([idx]) => CHUNKS[idx]);
+    .map(([idx]) => CHUNKS[idx])
+    .filter(Boolean);
 }
 
 function l2Normalize(vec) {
@@ -284,7 +297,7 @@ async function onSubmit(e) {
 
     // 3. Build data plan
     setStatus("Building data plan…");
-    const { plan } = await workerPost("/plan", { query, context });
+    const { plan } = await workerPost("/plan", { query, context, catalog: INSTRUMENT_CATALOG });
 
     if (plan?.instruments?.length) {
       const planEl = addMessage("assistant", "");
