@@ -1,0 +1,7 @@
+{
+  "workerUrl": "https://arcada-data-assistant.michaelahemmett.workers.dev",
+  "embedDim": 3072,
+  "topK": 6,
+  "pollIntervalMs": 8000,
+  "pollTimeoutMs": 3600000
+}

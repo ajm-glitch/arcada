@@ -14,14 +14,48 @@ let PASSWORD   = "";
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 
+async function promptPassword() {
+  const overlay = document.getElementById("passwordOverlay");
+  const form    = document.getElementById("passwordForm");
+  const input   = document.getElementById("passwordInput");
+  const errEl   = document.getElementById("passwordError");
+
+  const saved = sessionStorage.getItem("arcada_pw");
+  if (saved) { PASSWORD = saved; overlay.hidden = true; return; }
+
+  return new Promise(resolve => {
+    form.addEventListener("submit", async e => {
+      e.preventDefault();
+      const candidate = input.value;
+      const res = await fetch(WORKER_URL + "/embed", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${candidate}` },
+        body: JSON.stringify({ text: "test" }),
+      });
+      if (res.ok || res.status === 400) {
+        PASSWORD = candidate;
+        sessionStorage.setItem("arcada_pw", candidate);
+        overlay.hidden = true;
+        resolve();
+      } else {
+        errEl.style.display = "block";
+        input.value = "";
+        input.focus();
+      }
+    });
+  });
+}
+
 async function boot() {
   CONFIG     = await fetch("config.json").then(r => r.json());
   WORKER_URL = CONFIG.workerUrl;
   EMBED_DIM  = CONFIG.embedDim || 768;
 
+  await promptPassword();
+
   [CHUNKS, EMBEDDINGS] = await Promise.all([
-    fetch("../../public/chunks.json").then(r => r.json()),
-    fetch("../../public/embeddings.bin")
+    fetch("../public/chunks.json").then(r => r.json()),
+    fetch("../public/embeddings.bin")
       .then(r => r.arrayBuffer())
       .then(buf => new Float32Array(buf)),
   ]);
