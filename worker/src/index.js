@@ -57,9 +57,45 @@ async function handleEmbed(req, env) {
   return Response.json({ embedding: vec }, { headers: cors(env) });
 }
 
+// ── /welcome ──────────────────────────────────────────────────────────────────
+async function handleWelcome(req, env) {
+  const { paperSamples } = await req.json().catch(() => ({}));
+
+  const papersCtx = (paperSamples || []).length
+    ? `\n\nRecent papers from the RCA research literature:\n${
+        paperSamples.map(p => `- "${p.title}" (${p.first_author ?? "—"}, ${p.year ?? "n.d."})`).join("\n")
+      }`
+    : "";
+
+  const prompt = `Generate a brief, friendly welcome message for a researcher who just opened the aRCADA data interface.${papersCtx}
+
+Requirements:
+- One welcoming sentence to open
+- Mention 2–3 specific research directions (e.g. seismicity at Axial Seamount, methane flux at Hydrate Ridge, hydrothermal vent chemistry at ASHES)${papersCtx ? " — draw these from the paper topics listed above" : ""}
+- End with something like "or did you have something else in mind?"
+- Under 80 words, plain prose, no bullet points or markdown`;
+
+  const result = await retry(() =>
+    fetch(`${GEMINI_JSON_URL}?key=${env.GEMINI_API_KEY}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.7 },
+      }),
+    }).then(r => r.json())
+  );
+
+  const text = result?.candidates?.[0]?.content?.parts?.[0]?.text?.trim()
+    ?? "Hello! I'm aRCADA, your seafloor data assistant. I can help you access seismic, geochemical, and acoustic data from the Regional Cabled Array — or did you have something else in mind?";
+
+  return Response.json({ text }, { headers: cors(env) });
+}
+
 // ── /chat ─────────────────────────────────────────────────────────────────────
 async function handleChat(req, env) {
-  const { query, context } = await req.json();
+  const { query, context, history } = await req.json();
   if (!query) return new Response("Missing query", { status: 400, headers: cors(env) });
 
   const contextBlock = context?.length
@@ -68,9 +104,18 @@ async function handleChat(req, env) {
       }`
     : "";
 
+  // Build multi-turn contents: history first, then the current user turn
+  const contents = [];
+  if (history?.length) {
+    for (const msg of history) {
+      contents.push({ role: msg.role, parts: msg.parts ?? [{ text: msg.text ?? "" }] });
+    }
+  }
+  contents.push({ role: "user", parts: [{ text: query + contextBlock }] });
+
   const geminiReq = {
     system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
-    contents: [{ role: "user", parts: [{ text: query + contextBlock }] }],
+    contents,
     generationConfig: { temperature: 0.3 },
   };
 
@@ -323,6 +368,7 @@ export default {
     }
 
     if (url.pathname === "/embed"    && req.method === "POST") return handleEmbed(req, env);
+    if (url.pathname === "/welcome"  && req.method === "POST") return handleWelcome(req, env);
     if (url.pathname === "/chat"     && req.method === "POST") return handleChat(req, env);
     if (url.pathname === "/plan"     && req.method === "POST") return handlePlan(req, env);
     if (url.pathname === "/dispatch" && req.method === "POST") return handleDispatch(req, env);
