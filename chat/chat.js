@@ -196,6 +196,17 @@ function hybridFuse(bm25, semantic, k = CONFIG.topK || 6) {
     .filter(Boolean);
 }
 
+// For LITERATURE queries: prefer paper chunks, supplement with instruments if thin
+function paperBoostedContext(bm25Results, semanticResults, k = 10) {
+  const paperIdxSet = new Set(CHUNKS.map((c, i) => c.type === "paper" ? i : -1).filter(i => i >= 0));
+  const paperBm25     = bm25Results.filter(r => paperIdxSet.has(r.idx));
+  const paperSemantic = semanticResults.filter(r => paperIdxSet.has(r.idx));
+  const papers = hybridFuse(paperBm25, paperSemantic, k);
+  if (papers.length >= 4) return papers;
+  // Fewer than 4 paper hits — fall back to mixed results with a larger window
+  return hybridFuse(bm25Results, semanticResults, k);
+}
+
 function l2Normalize(vec) {
   let norm = 0;
   for (let i = 0; i < vec.length; i++) norm += vec[i] * vec[i];
@@ -485,6 +496,19 @@ function classifyIntent(query) {
   ];
   if (dataPatterns.some(p => p.test(q))) return "DATA_REQUEST";
 
+  // Literature / paper questions — before general QUESTION check so they get paper-boosted retrieval
+  const literaturePatterns = [
+    /\b(paper|papers|publication|publications|article|articles|study|studies|literature|journal)\b/,
+    /what (has been|have been|was|were) (published|written|found|studied)/,
+    /what (research|work|studies) (exist|are there|has been done)/,
+    /\b(cite|citation|reference|bibliography|findings|results)\b/,
+  ];
+  if (literaturePatterns.some(p => p.test(q))) return "LITERATURE";
+
+  // Capability questions
+  const capabilityPatterns = /^(what can you|what do you|what are you|what is arcada|tell me what you|how do you work|what are your capabilities)/;
+  if (capabilityPatterns.test(q)) return "CAPABILITY";
+
   // Strong question signals
   if (q.endsWith("?")) return "QUESTION";
   const questionStarters = /^(what|why|how|when|where|who|which|is |are |can you|could you|explain|tell me about|what's|what is|does |do )/;
@@ -565,10 +589,15 @@ async function handleNewQuery(query) {
   // Always run retrieval to populate the sidebar
   setStatus("Searching catalog…");
   const [bm25, semantic] = await Promise.all([
-    bm25Search(query),
-    semanticSearch(query),
+    bm25Search(query, 12),
+    semanticSearch(query, 12),
   ]);
-  const context = hybridFuse(bm25, semantic);
+
+  // Use paper-biased retrieval for literature questions; normal hybrid for everything else
+  const context = (intent === "LITERATURE")
+    ? paperBoostedContext(bm25, semantic)
+    : hybridFuse(bm25, semantic);
+
   renderInstruments(context);
 
   // Stream conversational response
@@ -583,8 +612,8 @@ async function handleNewQuery(query) {
   HISTORY.push({ role: "model", parts: [{ text: fullText }] });
   if (HISTORY.length > 16) HISTORY = HISTORY.slice(-16);
 
-  // Pure question → answered, done
-  if (intent === "QUESTION") return;
+  // Non-data intents → answered, done
+  if (intent === "QUESTION" || intent === "LITERATURE" || intent === "CAPABILITY") return;
 
   // AI asked a clarifying question → wait for user response
   if (responseHasQuestion(fullText)) {
