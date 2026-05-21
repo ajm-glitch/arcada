@@ -618,19 +618,20 @@ async function onSubmit(e) {
 async function handleNewQuery(query) {
   const intent = classifyIntent(query);
 
-  // Always run retrieval to populate the sidebar
-  setStatus("Searching catalog…");
-  const [bm25, semantic] = await Promise.all([
-    bm25Search(query, 12),
-    semanticSearch(query, 12),
-  ]);
+  let context = [];
 
-  // Use paper-biased retrieval for literature questions; normal hybrid for everything else
-  const context = (intent === "LITERATURE")
-    ? paperBoostedContext(bm25, semantic)
-    : hybridFuse(bm25, semantic);
-
-  renderInstruments(context);
+  if (intent !== "CAPABILITY") {
+    // Capability questions need no retrieval — system prompt has all the info
+    setStatus("Searching catalog…");
+    const [bm25, semantic] = await Promise.all([
+      bm25Search(query, 12),
+      semanticSearch(query, 12),
+    ]);
+    context = (intent === "LITERATURE")
+      ? paperBoostedContext(bm25, semantic)
+      : hybridFuse(bm25, semantic);
+    renderInstruments(context);
+  }
 
   // Stream conversational response
   setStatus("Generating response…");
@@ -638,6 +639,11 @@ async function handleNewQuery(query) {
   const historySnapshot = [...HISTORY];
   const fullText = await streamChatToElement(query, context, contentEl, historySnapshot);
   setStatus("");
+
+  // Fallback if model returned empty (safety filter, quota, etc.)
+  if (!fullText.trim()) {
+    contentEl.textContent = "I'm aRCADA, your Regional Cabled Array data assistant. I can help you access seismic, pressure, hydrophone, CTD, and geochemical data from the Cascadia margin — or answer questions about the published research. What would you like to explore?";
+  }
 
   // Update history (cap at 8 turns = 16 entries)
   HISTORY.push({ role: "user",  parts: [{ text: query    }] });
