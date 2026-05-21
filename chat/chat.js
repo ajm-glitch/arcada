@@ -615,23 +615,47 @@ async function onSubmit(e) {
   }
 }
 
+const CAPABILITY_RESPONSE = `**aRCADA** is your data assistant for the OOI Regional Cabled Array and EarthScope seafloor networks on the Cascadia margin. Here's what I can do:
+
+**Answer questions** about instruments, sites, and research — ask me anything about Axial Seamount, Hydrate Ridge, the ASHES vent field, or the Endurance Array.
+
+**Summarize published research** — ask "What papers have been published on Axial seismicity?" or "What research exists on methane seeps?" and I'll draw from a curated literature library.
+
+**Pull time-series data** — describe what you need in plain language (e.g. "hydrophone and pCO2 data from Hydrate Ridge, January–March 2021") and I'll identify the right instruments, build a data plan, and trigger a fetch job. Data is returned as Zarr archives.
+
+**Instruments I can access:**
+- Ocean bottom seismometers (OBS) at Axial Seamount and Hydrate Ridge
+- Seafloor pressure sensors (BOTPT) for deformation and slow-slip
+- CTD profilers (temperature, salinity, pressure)
+- Hydrophones (acoustic signals, whale calls, bubble plumes)
+- pCO2 sensors near methane seep fields
+- PI-operated sonar and mass spectrometers via the UW piweb portal
+
+What would you like to explore?`;
+
 async function handleNewQuery(query) {
   const intent = classifyIntent(query);
 
-  let context = [];
-
-  if (intent !== "CAPABILITY") {
-    // Capability questions need no retrieval — system prompt has all the info
-    setStatus("Searching catalog…");
-    const [bm25, semantic] = await Promise.all([
-      bm25Search(query, 12),
-      semanticSearch(query, 12),
-    ]);
-    context = (intent === "LITERATURE")
-      ? paperBoostedContext(bm25, semantic)
-      : hybridFuse(bm25, semantic);
-    renderInstruments(context);
+  // Capability questions: skip the API call entirely, render static response
+  if (intent === "CAPABILITY") {
+    const contentEl = addMessage("assistant", "");
+    contentEl.innerHTML = renderMarkdown(CAPABILITY_RESPONSE);
+    HISTORY.push({ role: "user",  parts: [{ text: query }] });
+    HISTORY.push({ role: "model", parts: [{ text: CAPABILITY_RESPONSE }] });
+    if (HISTORY.length > 16) HISTORY = HISTORY.slice(-16);
+    return;
   }
+
+  // All other intents: run retrieval and stream from the worker
+  setStatus("Searching catalog…");
+  const [bm25, semantic] = await Promise.all([
+    bm25Search(query, 12),
+    semanticSearch(query, 12),
+  ]);
+  const context = (intent === "LITERATURE")
+    ? paperBoostedContext(bm25, semantic)
+    : hybridFuse(bm25, semantic);
+  renderInstruments(context);
 
   // Stream conversational response
   setStatus("Generating response…");
@@ -639,11 +663,6 @@ async function handleNewQuery(query) {
   const historySnapshot = [...HISTORY];
   const fullText = await streamChatToElement(query, context, contentEl, historySnapshot);
   setStatus("");
-
-  // Fallback if model returned empty (safety filter, quota, etc.)
-  if (!fullText.trim()) {
-    contentEl.textContent = "I'm aRCADA, your Regional Cabled Array data assistant. I can help you access seismic, pressure, hydrophone, CTD, and geochemical data from the Cascadia margin — or answer questions about the published research. What would you like to explore?";
-  }
 
   // Update history (cap at 8 turns = 16 entries)
   HISTORY.push({ role: "user",  parts: [{ text: query    }] });
