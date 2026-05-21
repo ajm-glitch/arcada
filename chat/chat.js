@@ -701,7 +701,7 @@ async function handleNewQuery(query) {
     return;
   }
 
-  // All other intents: run retrieval and stream from the worker
+  // All other intents: run retrieval
   setStatus("Searching catalog…");
   const [bm25, semantic] = await Promise.all([
     bm25Search(query, 12),
@@ -712,7 +712,38 @@ async function handleNewQuery(query) {
     : hybridFuse(bm25, semantic);
   renderInstruments(context);
 
-  // Stream conversational response
+  // DATA_REQUEST: skip streaming chat — show client-side affirmative then build plan
+  if (intent === "DATA_REQUEST") {
+    const seen = new Set();
+    const instrNames = context
+      .filter(c => !c.id.startsWith("paper::"))
+      .filter(c => { const base = c.id.replace(/::.*$/, ""); return !seen.has(base) && seen.add(base); })
+      .map(c => c.name)
+      .filter(Boolean)
+      .slice(0, 6);
+
+    const affirmEl = addMessage("assistant", "");
+    if (instrNames.length) {
+      affirmEl.innerHTML = renderMarkdown(
+        `Found **${instrNames.length}** matching instrument${instrNames.length !== 1 ? "s" : ""}:\n` +
+        instrNames.map(n => `- ${n}`).join("\n")
+      );
+    } else {
+      affirmEl.innerHTML = renderMarkdown("No matching instruments found for this request. Try rephrasing or check the example queries.");
+      setStatus("");
+      return;
+    }
+
+    const affirmText = `Found instruments: ${instrNames.join(", ")}. Building data plan.`;
+    HISTORY.push({ role: "user",  parts: [{ text: query      }] });
+    HISTORY.push({ role: "model", parts: [{ text: affirmText }] });
+    if (HISTORY.length > 16) HISTORY = HISTORY.slice(-16);
+
+    await proceedDataPull(query, context);
+    return;
+  }
+
+  // All other intents: stream conversational response
   setStatus("Generating response…");
   const contentEl = addMessage("assistant", "");
   const historySnapshot = [...HISTORY];
@@ -725,9 +756,9 @@ async function handleNewQuery(query) {
   if (HISTORY.length > 16) HISTORY = HISTORY.slice(-16);
 
   // Non-data intents → answered, done
-  if (intent === "QUESTION" || intent === "LITERATURE" || intent === "CAPABILITY") return;
+  if (intent === "QUESTION" || intent === "LITERATURE") return;
 
-  // AI asked a clarifying question → wait for user response
+  // AMBIGUOUS: AI asked a clarifying question → wait for user response
   if (responseHasQuestion(fullText)) {
     CONV_STATE      = "awaiting_clarification";
     PENDING_QUERY   = query;
@@ -735,7 +766,7 @@ async function handleNewQuery(query) {
     return;
   }
 
-  // Data request with no clarification needed → pull data
+  // AMBIGUOUS with no clarifying question → pull data
   await proceedDataPull(query, context);
 }
 
