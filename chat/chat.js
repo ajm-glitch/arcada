@@ -378,21 +378,53 @@ function showDownloadModal(metadata) {
 
 // ── URL helpers ───────────────────────────────────────────────────────────────
 
+// PI instrument data pages — exact URLs from catalog/pi-pages.json
+const PI_PAGES = {
+  "PI-OVRSRA101":    "http://piweb.ooirsn.uw.edu/marum/data/OVRSRA101/",
+  "PI-QNTSRA101":    "http://piweb.ooirsn.uw.edu/marum/data/QNTSRA101/",
+  "PI-MASSP-ASHES":  "http://piweb.ooirsn.uw.edu/marum/data/MASSP/",
+  "PI-RASSP":        "http://piweb.ooirsn.uw.edu/marum/data/RASSP/",
+  "PI-CTDPFA110":    "http://piweb.ooirsn.uw.edu/marum/data/CTDPFA110/",
+  "PI-SCPRAA301":    "http://piweb.ooirsn.uw.edu/scpr/data/",
+  "PI-A0ABPA301":    "http://piweb.ooirsn.uw.edu/a0a/data/A0ABPA301_data/",
+  "PI-COVIS":        "http://piweb.ooirsn.uw.edu/covis/data/COVIS/",
+  "PI-DAS-OPTASENSE":"http://piweb.ooirsn.uw.edu/das/data/Optasense/",
+  "PI-DAS24":        "http://piweb.ooirsn.uw.edu/das24/data/",
+  "PI-DAS25":        "http://piweb.ooirsn.uw.edu/das25/data/",
+};
+
+// OOI instrument class page by instrument type
+const OOI_CLASS_BY_TYPE = {
+  ctd:              "ctdpf",
+  adcp:             "adcpt",
+  dissolved_oxygen: "dosta",
+  pco2:             "pco2w",
+  thermistor:       "thsph",
+  thermistor_array: "thsph",
+  nitrate:          "nutnr",
+  ph:               "phsen",
+  fluorometer:      "flort",
+  pressure:         "botpt",
+  hpies:            "hpies",
+};
+
 function getInstrumentUrl(chunk) {
   const id = chunk.id.replace(/::.*$/, "");
-  if (chunk.source === "pi_html") {
-    // PI-MASSP-ASHES → class "massp"; PI-OVRSRA101 → fall back to piweb
-    const seg = id.split("-")[1] || "";
-    const isAlpha = /^[A-Za-z]+$/.test(seg);
-    return isAlpha
-      ? `https://oceanobservatories.org/instrument-class/${seg.toLowerCase()}/`
-      : "http://piweb.ooirsn.uw.edu/marum/";
-  }
-  // OOI / EarthScope reference designator: RS01SBPD-DP01A-01-CTDPFL104
-  // Instrument class = first 5 alpha chars of last segment
+
+  // PI instruments: exact lookup
+  if (chunk.source === "pi_html") return PI_PAGES[id] || null;
+
+  // EarthScope instruments: FDSN OO network
+  if (chunk.source === "earthscope") return "https://www.fdsn.org/networks/detail/OO/";
+
+  // OOI API: type-based mapping first
+  const typeSlug = OOI_CLASS_BY_TYPE[chunk.type];
+  if (typeSlug) return `https://oceanobservatories.org/instrument-class/${typeSlug}/`;
+
+  // Fallback: extract class code from ref designator (5–6 uppercase letters)
   const segs = id.split("-");
   if (segs.length >= 4) {
-    const m = segs[segs.length - 1].match(/^([A-Z]{5})/);
+    const m = segs[segs.length - 1].match(/^([A-Z]{5,6})/);
     if (m) return `https://oceanobservatories.org/instrument-class/${m[1].toLowerCase()}/`;
   }
   return null;

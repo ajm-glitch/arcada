@@ -143,7 +143,7 @@ async function handleChat(req, env) {
   const geminiReq = {
     system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
     contents,
-    generationConfig: { temperature: 0.3 },
+    generationConfig: { temperature: 0.3, thinkingConfig: { thinkingBudget: 1024 } },
   };
 
   const upstream = await retry(() =>
@@ -153,6 +153,11 @@ async function handleChat(req, env) {
       body: JSON.stringify(geminiReq),
     })
   );
+
+  if (!upstream.ok) {
+    const errBody = await upstream.text();
+    return new Response(errBody, { status: upstream.status, headers: cors(env) });
+  }
 
   return new Response(upstream.body, {
     headers: { ...cors(env), "Content-Type": "text/event-stream", "Cache-Control": "no-cache" },
