@@ -578,6 +578,8 @@ async function streamChatToElement(query, context, contentEl, history = []) {
   const resp = await streamChat(query, context, history);
   if (!resp.ok) throw new Error(`Chat stream failed: ${resp.status}`);
 
+  contentEl.innerHTML = '<span class="thinking-indicator">Thinking<span class="thinking-dots"></span></span>';
+
   const reader  = resp.body.getReader();
   const decoder = new TextDecoder();
   let buffer   = "";
@@ -595,13 +597,15 @@ async function streamChatToElement(query, context, contentEl, history = []) {
       if (raw === "[DONE]") break;
       try {
         const chunk = JSON.parse(raw);
-        const text  = chunk?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+        const parts = chunk?.candidates?.[0]?.content?.parts ?? [];
+        const text  = parts.filter(p => !p.thought).map(p => p.text ?? "").join("");
         fullText   += text;
-        contentEl.innerHTML = renderMarkdown(fullText);
+        if (fullText) contentEl.innerHTML = renderMarkdown(fullText);
       } catch { /* partial JSON — skip */ }
     }
   }
 
+  if (!fullText) contentEl.innerHTML = '<span class="error-text">No response received. Please try again.</span>';
   contentEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
   return fullText;
 }
