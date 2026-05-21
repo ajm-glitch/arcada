@@ -1196,8 +1196,7 @@
   </h1>
 
   <p class="hero-desc">
-    An agentic, AI-powered framework that enables researchers to access
-    decade-spanning seafloor observational data through plain-language requests.
+    Answer questions, surface published research, and generate ready-to-run Python data pull scripts — all from plain-language requests against the OOI Regional Cabled Array's decade-spanning seafloor archive.
   </p>
 
   <div class="hero-cta">
@@ -1215,8 +1214,8 @@
       <span class="hero-meta-label">Avg. Depth</span>
     </div>
     <div class="hero-meta-item">
-      <span class="hero-meta-num">4</span>
-      <span class="hero-meta-label">Domains</span>
+      <span class="hero-meta-num">98+</span>
+      <span class="hero-meta-label">Instruments</span>
     </div>
     <div class="hero-meta-item">
       <span class="hero-meta-num">∞</span>
@@ -1301,42 +1300,42 @@
     <div class="approach-header">
       <div class="section-label">Architecture</div>
       <h2 class="section-title">RAG-based agentic<br><span class="teal">query resolution</span></h2>
-      <p class="section-body">A framework that maps plain-language requests to the appropriate RCA instruments and data streams, then pulls and returns formatted data with metadata.</p>
+      <p class="section-body">Three modes, one interface — ask questions, review literature, or generate data pull scripts from plain-language requests.</p>
     </div>
 
     <div class="flow-diagram">
       <div class="flow-step">
         <div class="flow-num">1</div>
-        <div class="flow-title">Plain-Language Input</div>
-        <div class="flow-desc">Researcher submits a natural language query describing the data they need.</div>
+        <div class="flow-title">Query + Mode</div>
+        <div class="flow-desc">Researcher types a plain-language request and selects a mode: Ask a Question, Literature Review, or Access Data.</div>
         <div class="flow-tag">User Interface</div>
       </div>
       <div class="flow-arrow">→</div>
       <div class="flow-step">
         <div class="flow-num">2</div>
-        <div class="flow-title">RAG Mapping</div>
-        <div class="flow-desc">Query is matched against instrument catalog and data stream index using retrieval-augmented generation.</div>
-        <div class="flow-tag">Gemini API</div>
+        <div class="flow-title">Hybrid RAG Retrieval</div>
+        <div class="flow-desc">BM25 + semantic search over 98+ instruments, published papers, site context, and data-access patterns.</div>
+        <div class="flow-tag">Gemini Embeddings</div>
       </div>
       <div class="flow-arrow">→</div>
       <div class="flow-step">
         <div class="flow-num">3</div>
-        <div class="flow-title">Agent Routing</div>
-        <div class="flow-desc">Agentic layer selects the correct pull script — OOI API call or HTML scraper — per instrument type.</div>
+        <div class="flow-title">Intent Routing</div>
+        <div class="flow-desc">Routes to the appropriate path: conversational Q&amp;A, citation-formatted literature summary, or structured data plan.</div>
         <div class="flow-tag">Cloudflare Workers</div>
       </div>
       <div class="flow-arrow">→</div>
       <div class="flow-step">
         <div class="flow-num">4</div>
-        <div class="flow-title">Data Retrieval</div>
-        <div class="flow-desc">Scripts fetch raw sensor data from OOI API endpoints or parse PI-operated HTML data pages.</div>
-        <div class="flow-tag">OOI RCA API</div>
+        <div class="flow-title">Script Assembly</div>
+        <div class="flow-desc">For data requests: instrument IDs, stream names, and time range are filled into a standalone Python script — no server-side pull needed.</div>
+        <div class="flow-tag">Gemini 2.0 Flash</div>
       </div>
       <div class="flow-arrow">→</div>
       <div class="flow-step">
         <div class="flow-num">5</div>
-        <div class="flow-title">Formatted Response</div>
-        <div class="flow-desc">Data returned with metadata, units, provenance, and optional cross-domain context.</div>
+        <div class="flow-title">Local Download</div>
+        <div class="flow-desc">Researcher downloads the <code>.py</code> script, runs it locally, and data is saved directly to disk — OOI M2M, EarthScope FDSN, or PI portal.</div>
         <div class="flow-tag">Researcher</div>
       </div>
     </div>
@@ -1351,24 +1350,24 @@
 
     <div class="features-grid">
       <div class="feature-card highlight">
-        <div class="feature-icon">// core</div>
-        <div class="feature-title">Natural Language Queries</div>
-        <div class="feature-desc">Ask for data in plain English. No API keys, no endpoint knowledge, no manual scraping. aRCADA resolves the instrument and retrieves the data.</div>
+        <div class="feature-icon">// ask</div>
+        <div class="feature-title">Ask a Question</div>
+        <div class="feature-desc">Get plain-language answers about instruments, sites, and science — what a BOTPT measures, what happened at Axial in 2015, how hydrothermal venting and seismicity relate.</div>
       </div>
       <div class="feature-card">
-        <div class="feature-icon">// integration</div>
-        <div class="feature-title">Cross-Domain Data Fusion</div>
-        <div class="feature-desc">Combine seismic, geochemical, biological, and oceanographic records in a single query. Explore relationships across tectonic, biological, and chemical systems.</div>
+        <div class="feature-icon">// literature</div>
+        <div class="feature-title">Literature Review</div>
+        <div class="feature-desc">Search a curated library of RCA-related publications. Ask "what research exists on methane seeps?" and get cited summaries drawn from indexed papers.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">// script</div>
+        <div class="feature-title">Python Script Generation</div>
+        <div class="feature-desc">For data requests, aRCADA builds a standalone <code>.py</code> script pre-filled with instrument IDs, stream names, and your time range — download and run locally.</div>
       </div>
       <div class="feature-card">
         <div class="feature-icon">// access</div>
         <div class="feature-title">Unified Instrument Coverage</div>
-        <div class="feature-desc">Bridges the gap between API-accessible instruments (seismometers, pressure gauges) and HTML-stored PI instruments (sonar, mass spectrometers).</div>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">// provenance</div>
-        <div class="feature-title">Metadata-Rich Returns</div>
-        <div class="feature-desc">Every data response includes instrument metadata, sampling parameters, site location, depth, and data provenance — ready for citation.</div>
+        <div class="feature-desc">Bridges API-accessible instruments (seismometers, pressure gauges, CTDs) with PI-operated portal instruments (sonar, mass spectrometers, DAS) — all in one query.</div>
       </div>
       <div class="feature-card">
         <div class="feature-icon">// scale</div>
@@ -1377,8 +1376,8 @@
       </div>
       <div class="feature-card">
         <div class="feature-icon">// open</div>
-        <div class="feature-title">GitHub-Hosted & Open</div>
-        <div class="feature-desc">Built on open infrastructure — Gemini API, Cloudflare, and GitHub Pages. Extensible to other cabled observatories and designed for community contribution.</div>
+        <div class="feature-title">Open &amp; Extensible</div>
+        <div class="feature-desc">Built on Gemini API, Cloudflare Workers, and GitHub Pages. The RAG index, instrument catalog, and data-pull scripts are all open-source and community-extensible.</div>
       </div>
     </div>
   </div>
@@ -1388,57 +1387,76 @@
 <section id="demo">
   <div class="container">
     <div class="demo-header">
-      <div class="section-label" style="justify-content:center">Interactive Preview</div>
-      <h2 class="section-title" style="text-align:center">Ask the <span class="teal">seafloor</span></h2>
-      <p class="section-body" style="margin:0 auto; text-align:center">Explore sample queries from real RCA research scenarios.</p>
+      <div class="section-label" style="justify-content:center">Interface Preview</div>
+      <h2 class="section-title" style="text-align:center">Three modes,<br><span class="teal">one interface</span></h2>
+      <p class="section-body" style="margin:0 auto; text-align:center">Switch between Q&amp;A, literature review, and data access without changing tools.</p>
     </div>
 
     <div class="query-interface">
       <div class="query-top">
         <div class="query-status"></div>
-        <span class="query-status-text">aRCADA Agent · Connected to OOI RCA</span>
-        <span class="query-badge">Demo Mode</span>
+        <span class="query-status-text">aRCADA · OOI Regional Cabled Array</span>
+        <span class="query-badge">Preview</span>
+      </div>
+
+      <!-- Mode bar mock -->
+      <div style="display:flex;gap:0.5rem;padding:0.75rem 1rem 0.5rem;border-bottom:1px solid var(--border2);">
+        <span style="padding:0.25rem 0.8rem;border-radius:99px;background:var(--teal);color:#fff;font-family:'DM Mono',monospace;font-size:0.65rem;letter-spacing:0.08em;text-transform:uppercase;">Ask a Question</span>
+        <span style="padding:0.25rem 0.8rem;border-radius:99px;border:1px solid var(--border2);color:var(--text3);font-family:'DM Mono',monospace;font-size:0.65rem;letter-spacing:0.08em;text-transform:uppercase;">Literature Review</span>
+        <span style="padding:0.25rem 0.8rem;border-radius:99px;border:1px solid var(--border2);color:var(--text3);font-family:'DM Mono',monospace;font-size:0.65rem;letter-spacing:0.08em;text-transform:uppercase;">Access Data</span>
       </div>
 
       <div class="chat-area" id="chatArea">
         <div class="chat-msg">
           <div class="chat-avatar">AI</div>
           <div class="chat-bubble">
-            Welcome to aRCADA. I can retrieve data from Ocean Observatories Initiative Regional Cabled Array instruments. Try asking about seismic activity, methane concentrations, vent temperatures, or biological observations at any RCA site.
+            Welcome to aRCADA. I can answer questions about RCA instruments and sites, surface relevant published research, or generate a ready-to-run Python script for any data request. Select a mode above to get started.
           </div>
         </div>
         <div class="chat-msg user">
           <div class="chat-avatar">You</div>
           <div class="chat-bubble">
-            Show me seismic activity at Axial Seamount from the past 30 days
+            Pull seismic and bottom pressure data from Axial Seamount for two weeks after the April 2015 eruption
           </div>
         </div>
         <div class="chat-msg">
           <div class="chat-avatar">AI</div>
           <div class="chat-bubble">
-            Querying HYDBBA106 broadband seismometer at Axial Base (45.82°N, 129.75°W, depth 1528m)…
-            <div style="margin-top:0.75rem; border-top: 1px solid var(--border2); padding-top:0.75rem;">
-              <div class="data-row"><span class="data-key">Instrument</span><span class="data-val">OBS-BB · HYDBBA106</span></div>
-              <div class="data-row"><span class="data-key">Period</span><span class="data-val">Apr 12 – May 12, 2026</span></div>
-              <div class="data-row"><span class="data-key">Events &gt;M1.0</span><span class="data-val">247 detected</span></div>
-              <div class="data-row"><span class="data-key">Peak magnitude</span><span class="data-val">M 3.1 · May 4, 2026</span></div>
-              <div class="data-row"><span class="data-key">Swarm activity</span><span class="data-val">Elevated (caldera region)</span></div>
-              <div class="data-row"><span class="data-key">Data stream</span><span class="data-val">RS01SBAS-MJ01A · continuous</span></div>
+            Got it — you're looking for seismic waveform and seafloor pressure data at Axial Seamount in the two weeks following the April 24, 2015 eruption onset.
+          </div>
+        </div>
+        <div class="chat-msg">
+          <div class="chat-avatar">AI</div>
+          <div class="chat-bubble" style="padding:0;">
+            <div style="padding:0.9rem 1rem 0.5rem;border-bottom:1px solid var(--border2);">
+              <div style="font-size:0.6rem;font-family:'DM Mono',monospace;letter-spacing:0.12em;text-transform:uppercase;color:var(--teal);margin-bottom:0.4rem;">Data Pull Script</div>
+              <div style="font-size:0.82rem;margin-bottom:0.6rem;">Seismic and bottom pressure records, Axial Seamount — Apr 24 → May 8 2015</div>
+              <div style="font-size:0.78rem;display:flex;flex-direction:column;gap:0.15rem;margin-bottom:0.6rem;">
+                <div style="display:flex;justify-content:space-between;padding:0.2rem 0;border-bottom:1px solid var(--border2);"><span>Axial Seamount Seismometer (AXAS1)</span><span style="font-family:'DM Mono',monospace;font-size:0.62rem;color:var(--text3);text-transform:uppercase;">EarthScope FDSN</span></div>
+                <div style="display:flex;justify-content:space-between;padding:0.2rem 0;border-bottom:1px solid var(--border2);"><span>Axial Base Bottom Pressure (BOTPT)</span><span style="font-family:'DM Mono',monospace;font-size:0.62rem;color:var(--text3);text-transform:uppercase;">OOI M2M API</span></div>
+                <div style="display:flex;justify-content:space-between;padding:0.2rem 0;"><span>Axial Base Seismometer (AXAS2)</span><span style="font-family:'DM Mono',monospace;font-size:0.62rem;color:var(--text3);text-transform:uppercase;">EarthScope FDSN</span></div>
+              </div>
+              <div style="font-size:0.75rem;color:var(--text3);margin-bottom:0.7rem;"><strong style="color:var(--text2);">Period</strong> 2015-04-24 → 2015-05-08 &nbsp;·&nbsp; <strong style="color:var(--text2);">Est. size</strong> ~840 MB</div>
             </div>
-            <div style="margin-top:0.75rem; font-size:0.68rem; color:var(--text3);">→ Raw MSEED available · Cross-reference with BOTPT pressure data?</div>
+            <div style="padding:0.6rem 1rem;">
+              <span style="display:inline-flex;align-items:center;gap:0.35rem;padding:0.4rem 0.9rem;background:var(--teal);color:#fff;border-radius:6px;font-family:'DM Mono',monospace;font-size:0.7rem;letter-spacing:0.06em;text-transform:uppercase;cursor:default;">
+                <svg width="12" height="12" viewBox="0 0 13 13" fill="none"><path d="M6.5 1v8M3 7l3.5 3.5L10 7M1 11.5h11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                Download Script (.py)
+              </span>
+            </div>
           </div>
         </div>
       </div>
 
       <div class="query-examples">
-        <button class="query-chip" onclick="demoQuery(this, 'methane')">CH₄ at Southern Hydrate Ridge</button>
-        <button class="query-chip" onclick="demoQuery(this, 'temp')">Vent fluid temperature</button>
-        <button class="query-chip" onclick="demoQuery(this, 'bio')">Biological camera feed</button>
-        <button class="query-chip" onclick="demoQuery(this, 'tilt')">Seafloor deformation</button>
+        <button class="query-chip" onclick="demoQuery(this, 'literature')">Literature on Axial seismicity</button>
+        <button class="query-chip" onclick="demoQuery(this, 'explain')">What does BOTPT measure?</button>
+        <button class="query-chip" onclick="demoQuery(this, 'methane')">pCO₂ data at Hydrate Ridge</button>
+        <button class="query-chip" onclick="demoQuery(this, 'vent')">Vent thermistor, ASHES field</button>
       </div>
 
       <div class="query-input-area">
-        <input class="query-input" type="text" id="queryInput" placeholder="Ask about any RCA instrument or site…" />
+        <input class="query-input" type="text" id="queryInput" placeholder="Ask about any RCA instrument, site, or dataset…" />
         <button class="query-send" onclick="sendQuery()">Send →</button>
       </div>
     </div>
@@ -1533,14 +1551,26 @@
     <div class="future-grid" style="grid-template-columns: repeat(2, 1fr); max-width: 740px;">
       <div class="future-card">
         <div class="future-num">01</div>
-        <div class="future-title">Literature Review RAG</div>
-        <div class="future-desc">A retrieval-augmented layer over RCA-related publications to identify knowledge gaps and surface relevant prior work alongside data.</div>
-        <div class="future-phase">Phase 2</div>
+        <div class="future-title">Expanded Literature Corpus</div>
+        <div class="future-desc">Index full-text PDFs from the RCA research literature, moving beyond abstracts to enable paragraph-level retrieval and broader interdisciplinary synthesis.</div>
+        <div class="future-phase">Near-term</div>
       </div>
       <div class="future-card">
         <div class="future-num">02</div>
+        <div class="future-title">User Persona Modes</div>
+        <div class="future-desc">Tailor responses for expert scientists, interdisciplinary researchers, and the general public — same data, different depth and framing.</div>
+        <div class="future-phase">Near-term</div>
+      </div>
+      <div class="future-card">
+        <div class="future-num">03</div>
+        <div class="future-title">Notebook Integration</div>
+        <div class="future-desc">Generate Jupyter notebooks rather than bare scripts — with inline data loading, exploratory plots, and suggested analyses appropriate to the instrument type.</div>
+        <div class="future-phase">Phase 2</div>
+      </div>
+      <div class="future-card">
+        <div class="future-num">04</div>
         <div class="future-title">COSZO Integration</div>
-        <div class="future-desc">Adapt aRCADA as the data assistant model for the forthcoming Cascadia Offshore Subduction Zone Observatory to advance earthquake and tsunami early warning for the Pacific Northwest.</div>
+        <div class="future-desc">Adapt aRCADA as the data assistant for the forthcoming Cascadia Offshore Subduction Zone Observatory to support earthquake and tsunami early warning research.</div>
         <div class="future-phase">Long-term</div>
       </div>
     </div>

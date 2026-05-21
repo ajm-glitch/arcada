@@ -21,6 +21,9 @@ let PENDING_CONTEXT = null;
 // History in Gemini format: [{role:"user"|"model", parts:[{text}]}]
 let HISTORY = [];
 
+// ── Mode ──────────────────────────────────────────────────────────────────────
+let CURRENT_MODE = "ask"; // "ask" | "literature" | "data"
+
 // ── Boot ──────────────────────────────────────────────────────────────────────
 
 async function boot() {
@@ -62,6 +65,18 @@ async function boot() {
   miniSearch.addAll(CHUNKS.map((c, i) => ({ ...c, miniSearchId: i })));
 
   document.getElementById("inputForm").addEventListener("submit", onSubmit);
+  document.querySelectorAll(".mode-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      CURRENT_MODE = btn.dataset.mode;
+      document.querySelectorAll(".mode-btn").forEach(b => b.classList.toggle("active", b === btn));
+      const placeholders = {
+        ask:        "e.g. What instruments are at Axial Seamount? What does BOTPT measure?",
+        literature: "e.g. What papers have been published on Axial seismicity? Summarize methane seep research.",
+        data:       "e.g. Show me seismic and pressure data near Axial Seamount for two weeks after the 2015 eruption",
+      };
+      document.getElementById("queryInput").placeholder = placeholders[CURRENT_MODE] || "";
+    });
+  });
   document.getElementById("modalClose").addEventListener("click", () => {
     document.getElementById("modalOverlay").hidden = true;
   });
@@ -281,49 +296,289 @@ function renderMarkdown(text) {
 // ── Data plan card ────────────────────────────────────────────────────────────
 
 function renderDataPlan(plan) {
-  const sourceLabel = { ooi_api: "OOI API", earthscope: "EarthScope", pi_html: "PI Portal" };
-  const typeLabel   = {
-    seismometer: "Seismometer", pressure: "Pressure / BOTPT",
-    ctd: "CTD Profiler", hydrophone: "Hydrophone",
-    pco2: "pCO₂ Sensor", thermistor: "Thermistor",
-    sonar: "Scanning Sonar", mass_spectrometer: "Mass Spectrometer",
-  };
-
+  const sourceLabel = { ooi_api: "OOI M2M API", earthscope: "EarthScope FDSN", pi_html: "PI Portal" };
   const tr = plan.time_range;
-  const period = tr
-    ? `${tr.start?.slice(0, 10) ?? "?"} → ${tr.end?.slice(0, 10) ?? "?"}`
-    : null;
+  const period = tr ? `${tr.start?.slice(0, 10) ?? "?"} → ${tr.end?.slice(0, 10) ?? "?"}` : "—";
+  const sizeEst = estimateDataSize(plan);
 
-  const instruments = (plan.instruments || []).map(inst => {
-    const rows = [
-      ["Instrument", inst.name || inst.id],
-      ["ID",         inst.id],
-      period ? ["Period", period] : null,
-      ["Type",       typeLabel[inst.type] || inst.type],
-      ["Source",     sourceLabel[inst.source] || inst.source],
-      ["Priority",   inst.priority || "—"],
-    ].filter(Boolean).map(([k, v]) =>
-      `<div class="data-row"><span class="data-key">${k}</span><span class="data-val">${v}</span></div>`
-    ).join("");
-
-    return `
-      <div class="plan-instrument${inst.priority === "primary" ? " plan-primary-instr" : ""}">
-        <div class="plan-data-table">${rows}</div>
-        ${inst.rationale ? `<div class="plan-rationale">${inst.rationale}</div>` : ""}
-      </div>`;
-  }).join("");
+  const instrRows = (plan.instruments || []).map(inst =>
+    `<div class="script-instr-row">
+      <span class="script-instr-name">${inst.name || inst.id}</span>
+      <span class="script-instr-source">${sourceLabel[inst.source] || inst.source}</span>
+    </div>`
+  ).join("");
 
   const notesHtml = tr?.notes
-    ? `<div class="plan-time-notes" style="margin-bottom:0.75rem;">${tr.notes}</div>`
+    ? `<div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.5rem;font-style:italic;">${tr.notes}</div>`
     : "";
 
   return `
-    <div class="data-plan-card">
-      <div class="plan-card-label">Data Plan</div>
-      ${plan.summary ? `<p class="plan-summary">${plan.summary}</p>` : ""}
+    <div class="script-card">
+      <div class="script-card-label">Data Pull Script</div>
+      ${plan.summary ? `<p class="script-summary">${plan.summary}</p>` : ""}
       ${notesHtml}
-      <div class="plan-instruments-list">${instruments}</div>
+      <div class="script-instr-list">${instrRows}</div>
+      <div class="script-meta">
+        <span><strong>Period</strong> ${period}</span>
+        ${sizeEst ? `<span><strong>Est. size</strong> ${sizeEst}</span>` : ""}
+      </div>
+      <button class="btn-download-script">
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true"><path d="M6.5 1v8M3 7l3.5 3.5L10 7M1 11.5h11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Download Script (.py)
+      </button>
     </div>`;
+}
+
+// ── Data size estimator ───────────────────────────────────────────────────────
+function estimateDataSize(plan) {
+  const tr = plan.time_range;
+  if (!tr?.start || !tr?.end) return null;
+  const duration_s = (new Date(tr.end) - new Date(tr.start)) / 1000;
+  if (duration_s <= 0) return null;
+
+  // bytes/sample * channels * format_overhead
+  const SIZE_TABLE = {
+    seismometer:      { hz: 100,  ch: 3,  bps: 4,  fmt: 1.0 },
+    hydrophone:       { hz: 200,  ch: 1,  bps: 4,  fmt: 1.0 },
+    pressure:         { hz: 1,    ch: 3,  bps: 8,  fmt: 2.0 },
+    ctd:              { hz: 1,    ch: 5,  bps: 8,  fmt: 2.0 },
+    pco2:             { hz: 0.5,  ch: 3,  bps: 8,  fmt: 2.0 },
+    adcp:             { hz: 1,    ch: 8,  bps: 8,  fmt: 2.0 },
+    fluorometer:      { hz: 1,    ch: 3,  bps: 8,  fmt: 2.0 },
+    thermistor:       { hz: 1,    ch: 4,  bps: 8,  fmt: 2.0 },
+    thermistor_array: { hz: 1,    ch: 24, bps: 8,  fmt: 2.0 },
+    dissolved_oxygen: { hz: 1,    ch: 2,  bps: 8,  fmt: 2.0 },
+    nitrate:          { hz: 0.1,  ch: 2,  bps: 8,  fmt: 2.0 },
+    ph:               { hz: 0.1,  ch: 2,  bps: 8,  fmt: 2.0 },
+    velocimeter:      { hz: 1,    ch: 3,  bps: 8,  fmt: 2.0 },
+    hpies:            { hz: 1,    ch: 3,  bps: 8,  fmt: 2.0 },
+  };
+
+  let total = 0;
+  for (const inst of (plan.instruments || [])) {
+    const cat = INSTRUMENT_CATALOG.find(c => c.id === inst.id);
+    const t   = SIZE_TABLE[inst.type] || { hz: 1, ch: 2, bps: 8, fmt: 2.0 };
+    const hz  = cat?.sample_rate_hz || t.hz;
+    total += hz * t.ch * t.bps * t.fmt * duration_s;
+  }
+
+  if (total < 1024)            return `~${Math.round(total)} B`;
+  if (total < 1024 ** 2)       return `~${(total / 1024).toFixed(0)} KB`;
+  if (total < 1024 ** 3)       return `~${(total / 1024 ** 2).toFixed(0)} MB`;
+  return `~${(total / 1024 ** 3).toFixed(1)} GB`;
+}
+
+// ── Python script generator ───────────────────────────────────────────────────
+
+const STREAM_OVERRIDES = {
+  PRESTA: ["prest_real_time",          "streamed"],
+  PRESTB: ["prest_real_time",          "streamed"],
+  BOTPTA: ["botpt_nano_sample",        "streamed"],
+  FLORDD: ["flord_d_data_record",      "streamed"],
+  FLORTD: ["flort_d_data_record",      "streamed"],
+  FLCDRA: ["flcd_r_dcl_instrument",    "recovered_inst"],
+  FLNTUA: ["flntu_a_dcl_instrument",   "recovered_inst"],
+  CTDPFL: ["ctdpf_optode_sample",      "recovered_inst"],
+  VEL3DA: ["vel3d_b_sample",           "recovered_inst"],
+  DOSTAD: ["do_stable_sample",         "streamed"],
+  VADCPA: ["adcp_velocity_beam",       "streamed"],
+  VADCPB: ["adcp_velocity_beam",       "streamed"],
+  ADCPTD: ["adcp_velocity_beam",       "streamed"],
+  ADCPTE: ["adcp_velocity_beam",       "streamed"],
+  ADCPSK: ["adcp_velocity_beam",       "streamed"],
+  VEL3DB: ["vel3d_b_sample",           "streamed"],
+  VELPTD: ["velpt_velocity_data",      "streamed"],
+  THSPHA: ["thsph_a_dcl_instrument",   "streamed"],
+  TRHPHA: ["trhph_sample",             "streamed"],
+  TMPSFA: ["tmpsf_sample",             "streamed"],
+  HYDLFA: ["hydlf_a_dcl_instrument",   "streamed"],
+  HYDBBA: ["hydbba_dcl_data",          "streamed"],
+};
+
+const STREAM_BY_TYPE = {
+  pressure:         ["botpt_nano_sample",         "streamed"],
+  ctd:              ["ctdpf_optode_sample",        "streamed"],
+  dissolved_oxygen: ["do_stable_sample",           "streamed"],
+  ph:               ["phsen_data_record",          "streamed"],
+  fluorometer:      ["flort_d_data_record",        "streamed"],
+  nitrate:          ["nutnr_a_sample",             "streamed"],
+  adcp:             ["adcp_velocity_beam",         "streamed"],
+  velocimeter:      ["vel3d_b_sample",             "streamed"],
+  pco2:             ["pco2w_a_sami_data_record",   "streamed"],
+  hpies:            ["horizontal_electric_field",  "streamed"],
+  thermistor_array: ["tmpsf_sample",               "streamed"],
+  thermistor:       ["trhph_sample",               "streamed"],
+};
+
+const PI_BASE_URLS = {
+  "PI-OVRSRA101":    "http://piweb.ooirsn.uw.edu/marum/data/OVRSRA101/",
+  "PI-QNTSRA101":    "http://piweb.ooirsn.uw.edu/marum/data/QNTSRA101/",
+  "PI-MASSP-ASHES":  "http://piweb.ooirsn.uw.edu/marum/data/MASSP/",
+  "PI-RASSP":        "http://piweb.ooirsn.uw.edu/marum/data/RASSP/",
+  "PI-CTDPFA110":    "http://piweb.ooirsn.uw.edu/marum/data/CTDPFA110/",
+  "PI-SCPRAA301":    "http://piweb.ooirsn.uw.edu/scpr/data/",
+  "PI-A0ABPA301":    "http://piweb.ooirsn.uw.edu/a0a/data/A0ABPA301_data/",
+  "PI-COVIS":        "http://piweb.ooirsn.uw.edu/covis/data/COVIS/",
+  "PI-DAS-OPTASENSE":"http://piweb.ooirsn.uw.edu/das/data/Optasense/",
+  "PI-DAS24":        "http://piweb.ooirsn.uw.edu/das24/data/",
+  "PI-DAS25":        "http://piweb.ooirsn.uw.edu/das25/data/",
+};
+
+function resolveOOIStream(instId, instType, catEntry) {
+  if (catEntry?.stream) {
+    const method = (catEntry.node || "").startsWith("DP") ? "recovered_inst" : "streamed";
+    return [catEntry.stream, method];
+  }
+  const parts   = instId.split("-");
+  const lastSeg = parts[parts.length - 1] || "";
+  const cls     = (lastSeg.match(/^([A-Z][A-Z0-9]{4,5})/) || [])[1] || "";
+  if (STREAM_OVERRIDES[cls]) return STREAM_OVERRIDES[cls];
+  if (STREAM_BY_TYPE[instType]) return STREAM_BY_TYPE[instType];
+  return ["unknown_stream", "streamed"];
+}
+
+function pyDate(iso) {
+  const d = new Date(iso);
+  return [d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate(),
+          d.getUTCHours(), d.getUTCMinutes(), d.getUTCSeconds()].join(", ");
+}
+
+function generateDataScript(plan) {
+  const { summary, time_range, instruments } = plan;
+  const start = time_range?.start || "1970-01-01T00:00:00Z";
+  const end   = time_range?.end   || "1970-01-02T00:00:00Z";
+
+  const needsObspy    = instruments.some(i => i.source === "earthscope");
+  const needsRequests = instruments.some(i => i.source === "ooi_api" || i.source === "pi_html");
+
+  const fns   = [];
+  const calls = [];
+
+  for (const inst of instruments) {
+    const cat     = INSTRUMENT_CATALOG.find(c => c.id === inst.id) || {};
+    const safeId  = inst.id.replace(/[^a-zA-Z0-9]/g, "_").toLowerCase();
+    const fnName  = "fetch_" + safeId;
+
+    if (inst.source === "ooi_api") {
+      const parts  = inst.id.split("-");
+      const site   = parts[0] || "";
+      const node   = parts[1] || "";
+      const instr  = parts.slice(2).join("-") || "";
+      const [stream, method] = resolveOOIStream(inst.id, inst.type, cat);
+
+      fns.push([
+        `def ${fnName}():`,
+        `    """${inst.name} (${inst.type}) — OOI M2M API"""`,
+        `    begin = START.strftime('%Y-%m-%dT%H:%M:%S.000Z')`,
+        `    end_dt = END.strftime('%Y-%m-%dT%H:%M:%S.000Z')`,
+        `    url = (`,
+        `        "https://ooinet.oceanobservatories.org/api/m2m/12576/sensor/inv"`,
+        `        f"/${site}/${node}/${instr}/${method}/${stream}"`,
+        `        f"?beginDT={begin}&endDT={end_dt}&format=application/json&limit=20000"`,
+        `    )`,
+        `    auth = (OOI_USERNAME, OOI_TOKEN) if OOI_USERNAME else None`,
+        `    r = requests.get(url, auth=auth, timeout=120)`,
+        `    r.raise_for_status()`,
+        `    data = r.json()`,
+        `    out = OUT_DIR / "${safeId}.json"`,
+        `    with open(out, "w") as f:`,
+        `        json.dump(data, f)`,
+        `    print(f"  ${inst.name}: {len(data)} records → {out.name}")`,
+        ``,
+      ].join("\n"));
+
+    } else if (inst.source === "earthscope") {
+      const esId    = inst.id.replace(/^EARTHSCOPE-/, "");
+      const esParts = esId.split("-");
+      const network = esParts[0] || "OO";
+      const station = esParts[1] || esId;
+      const channel = inst.type === "hydrophone" ? "HDH,LDH" : "BH*,HH*";
+
+      fns.push([
+        `def ${fnName}():`,
+        `    """${inst.name} (${inst.type}) — EarthScope FDSN"""`,
+        `    client = FDSNClient("IRIS")`,
+        `    st = client.get_waveforms(`,
+        `        network="${network}", station="${station}",`,
+        `        location="*", channel="${channel}",`,
+        `        starttime=UTCDateTime(START), endtime=UTCDateTime(END),`,
+        `    )`,
+        `    st.merge(method=1, fill_value=0)`,
+        `    out = OUT_DIR / "${safeId}.mseed"`,
+        `    st.write(str(out), format="MSEED")`,
+        `    print(f"  ${inst.name}: {len(st)} traces → {out.name}")`,
+        ``,
+      ].join("\n"));
+
+    } else if (inst.source === "pi_html") {
+      const baseUrl = PI_BASE_URLS[inst.id] || "#";
+      fns.push([
+        `def ${fnName}():`,
+        `    """${inst.name} — PI Portal (manual download)`,
+        `    Data available at: ${baseUrl}`,
+        `    Navigate to the relevant date folder to download files."""`,
+        `    print("  ${inst.name}: PI portal — download manually from:")`,
+        `    print("    ${baseUrl}")`,
+        ``,
+      ].join("\n"));
+    }
+
+    calls.push(`    ${fnName}()`);
+  }
+
+  const instrList = instruments.map(i => `  - ${i.name} (${i.source})`).join("\n");
+  const obspyLine = needsObspy    ? "\nfrom obspy.clients.fdsn import Client as FDSNClient\nfrom obspy import UTCDateTime" : "";
+  const reqLine   = needsRequests ? "\nimport requests" : "";
+
+  return [
+    `"""`,
+    `aRCADA Data Pull Script`,
+    `Generated: ${new Date().toISOString()}`,
+    `Summary:   ${summary || "Data request"}`,
+    ``,
+    `Time range: ${start.slice(0, 10)} → ${end.slice(0, 10)}`,
+    `Instruments:`,
+    instrList,
+    ``,
+    `Requirements:`,
+    `  pip install${needsRequests ? " requests" : ""}${needsObspy ? " obspy" : ""}`,
+    ``,
+    `OOI credentials (if using OOI M2M):`,
+    `  export OOI_USERNAME=your_username`,
+    `  export OOI_TOKEN=your_api_token`,
+    `  Register: https://ooinet.oceanobservatories.org`,
+    `"""`,
+    ``,
+    `import json, os`,
+    `from datetime import datetime, timezone`,
+    `from pathlib import Path`,
+    reqLine,
+    obspyLine,
+    ``,
+    `START        = datetime(${pyDate(start)}, tzinfo=timezone.utc)`,
+    `END          = datetime(${pyDate(end)}, tzinfo=timezone.utc)`,
+    `OUT_DIR      = Path("./arcada_data")`,
+    `OUT_DIR.mkdir(exist_ok=True)`,
+    `OOI_USERNAME = os.getenv("OOI_USERNAME", "")`,
+    `OOI_TOKEN    = os.getenv("OOI_TOKEN", "")`,
+    ``,
+    ...fns,
+    `if __name__ == "__main__":`,
+    `    print(f"Fetching: {START.date()} → {END.date()}")`,
+    ...calls,
+    `    print(f"\\nDone. Saved to: {OUT_DIR.resolve()}")`,
+    ``,
+  ].join("\n");
+}
+
+function downloadFile(content, filename, mime) {
+  const blob = new Blob([content], { type: mime });
+  const url  = URL.createObjectURL(blob);
+  const a    = Object.assign(document.createElement("a"), { href: url, download: filename });
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 // ── Related papers (after data delivery) ─────────────────────────────────────
@@ -689,7 +944,11 @@ const CAPABILITY_RESPONSE = `**aRCADA** is your data assistant for the OOI Regio
 What would you like to explore?`;
 
 async function handleNewQuery(query) {
-  const intent = classifyIntent(query);
+  let intent = classifyIntent(query);
+
+  // Mode overrides intent
+  if (CURRENT_MODE === "literature") intent = "LITERATURE";
+  else if (CURRENT_MODE === "data")  intent = "DATA_REQUEST";
 
   // Capability questions: skip the API call entirely, render static response
   if (intent === "CAPABILITY") {
@@ -801,7 +1060,6 @@ async function handleClarificationReply(reply) {
 async function proceedDataPull(query, context) {
   setStatus("Building data plan…");
 
-  // Deduplicate context to base IDs before sending to /plan
   const seenPlan = new Set();
   const planContext = context.filter(c => {
     const base = c.id.replace(/::.*$/, "");
@@ -810,60 +1068,30 @@ async function proceedDataPull(query, context) {
     return true;
   });
 
-  const { plan } = await workerPost("/plan", { query, context: planContext });
+  const { plan, debug } = await workerPost("/plan", { query, context: planContext });
 
   if (!plan?.instruments?.length) {
     setStatus("");
-    addMessage("assistant", "I couldn't identify specific instruments to pull for that request. Try rephrasing, or check the example queries below.");
+    addMessage("assistant", "I couldn't identify specific instruments for that request. Try rephrasing, or check the example queries.");
     return;
   }
 
-  // Render plan as formatted card
+  setStatus("");
   const planEl = addMessage("assistant", "");
   planEl.innerHTML = renderDataPlan(plan);
 
-  // Dispatch GitHub Actions job
-  setStatus("Dispatching data pull job…");
-  const { runId } = await workerPost("/dispatch", { plan });
-
-  if (runId) {
-    setStatus(`Job running (ID ${runId}) — this may take several minutes…`);
-    await pollJob(runId, plan, context);
-  } else {
-    setStatus("");
-    addMessage("error", "Could not start data pull job. Check Worker configuration.");
-  }
-}
-
-async function pollJob(runId, plan, context = []) {
-  const interval = CONFIG.pollIntervalMs || 8000;
-  const timeout  = CONFIG.pollTimeoutMs  || 3_600_000;
-  const deadline = Date.now() + timeout;
-
-  while (Date.now() < deadline) {
-    await new Promise(r => setTimeout(r, interval));
-    try {
-      const status = await workerGet(`/status/${runId}`);
-      setStatus(`Job ${runId}: ${status.status}…`);
-
-      if (status.status === "completed") {
-        setStatus("");
-        if (status.conclusion === "success") {
-          showDownloadModal({ ...status, instruments: plan?.instruments || [] });
-          showRelatedPapers(context);
-        } else {
-          addMessage("error", `Data pull job failed: ${status.conclusion}. Check GitHub Actions logs.`);
-        }
-        return;
-      }
-    } catch (e) {
-      console.warn("Poll error:", e);
-    }
+  // Attach download handler
+  const btn = planEl.querySelector(".btn-download-script");
+  if (btn) {
+    btn.addEventListener("click", () => {
+      const script = generateDataScript(plan);
+      downloadFile(script, "arcada_data_pull.py", "text/x-python");
+    });
   }
 
-  setStatus("");
-  addMessage("error", "Timed out waiting for data pull job. Check GitHub Actions for job status.");
+  showRelatedPapers(context);
 }
+
 
 // ── Theme ─────────────────────────────────────────────────────────────────────
 

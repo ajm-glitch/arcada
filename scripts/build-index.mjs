@@ -160,6 +160,68 @@ function makeChunks() {
     }
   }
 
+  // ── Data-access script pattern chunks ────────────────────────────────────────
+  const scriptPatterns = [
+    {
+      id:       "script::ooi-m2m",
+      title:    "Accessing OOI M2M API data (Python)",
+      type:     "script",
+      source:   "arcada-scripts",
+      location: "Oregon/Washington offshore",
+      keywords: ["OOI", "M2M API", "data access", "Python", "requests", "download", "time series"],
+      text: `How to download OOI Regional Cabled Array data via the M2M REST API using Python.
+Base URL: https://ooinet.oceanobservatories.org/api/m2m/12576/sensor/inv/{site}/{node}/{instrument}/{method}/{stream}
+Requires OOI_USERNAME and OOI_TOKEN (register at ooinet.oceanobservatories.org).
+Supports beginDT and endDT query parameters in ISO8601 format.
+Returns JSON array of time series records with timestamp, measured variables, and QC flags.
+Instrument ref designators follow the pattern SITE-NODE-PP-CLASS+NUM (e.g. RS01SLBS-MJ01A-05-HYDLFA101).
+Method is 'streamed' for most cabled instruments; 'recovered_inst' for deep profiler wire-following instruments (node prefix DP).
+Stream names depend on instrument class: e.g. botpt_nano_sample (pressure), ctdpf_optode_sample (CTD), vel3d_b_sample (velocimeter).`,
+      embedText: "How do I download OOI M2M API data? Python script for accessing Regional Cabled Array time series data.",
+    },
+    {
+      id:       "script::earthscope-fdsn",
+      title:    "Accessing EarthScope seismic data via FDSN (Python / ObsPy)",
+      type:     "script",
+      source:   "arcada-scripts",
+      location: "Axial Seamount, Hydrate Ridge",
+      keywords: ["EarthScope", "FDSN", "ObsPy", "seismic", "waveform", "MiniSEED", "Python", "download", "seismometer", "hydrophone"],
+      text: `How to download RCA seismic and hydrophone waveforms using ObsPy and the EarthScope FDSN service.
+Client: obspy.clients.fdsn.Client("IRIS") — network OO.
+Seismometer stations: AXAS1, AXAS2 (Axial), AXCC1, AXEC2, AXEC3, HYSB1 (Hydrate Ridge), and others.
+Seismic channels: BH* (broadband, 40 Hz), HH* (high-gain, 100 Hz), EH* (short-period).
+Hydrophone channels: HDH (200 Hz) and LDH (1 Hz decimated).
+Use get_waveforms(network, station, location, channel, starttime, endtime) returning an ObsPy Stream.
+Output formats: MiniSEED (.mseed), SAC, or NumPy arrays. Use stream.write(path, format="MSEED").
+Large time ranges should be fetched day-by-day to manage memory.`,
+      embedText: "How do I download seismic waveform data? ObsPy EarthScope FDSN script for RCA ocean bottom seismometer data.",
+    },
+    {
+      id:       "script::pi-portal",
+      title:    "Accessing PI-operated instrument data from piweb.ooirsn.uw.edu",
+      type:     "script",
+      source:   "arcada-scripts",
+      location: "Hydrate Ridge, ASHES vent field",
+      keywords: ["PI portal", "piweb", "manual download", "scanning sonar", "MASSP", "RASSP", "DAS", "Python", "BeautifulSoup"],
+      text: `How to access PI-operated instrument data from the UW piweb portal (piweb.ooirsn.uw.edu).
+Data is served via Apache directory listings organized by date: {base_url}/{YYYY}/{MM}/{timestamp}/data/
+Use requests + BeautifulSoup to scrape directory listings and download individual data files.
+Instruments and their base URLs:
+- Scanning Sonar (OVRSRA101): http://piweb.ooirsn.uw.edu/marum/data/OVRSRA101/
+- Scanning Sonar (QNTSRA101): http://piweb.ooirsn.uw.edu/marum/data/QNTSRA101/
+- Mass Spectrometer MASSP: http://piweb.ooirsn.uw.edu/marum/data/MASSP/
+- RASSP fluid sampler: http://piweb.ooirsn.uw.edu/marum/data/RASSP/
+- COVIS sonar: http://piweb.ooirsn.uw.edu/covis/data/COVIS/
+- DAS (Optasense): http://piweb.ooirsn.uw.edu/das/data/Optasense/
+File formats vary by instrument (binary, CSV, proprietary). Many require manual inspection.`,
+      embedText: "How do I download PI instrument data from piweb? Scraping Apache directory listings for scanning sonar, MASSP, DAS data.",
+    },
+  ];
+
+  for (const sp of scriptPatterns) {
+    chunks.push({ ...sp, embedText: sp.embedText });
+  }
+
   return chunks;
 }
 
@@ -217,6 +279,28 @@ function buildSearchIndex(chunks) {
   };
 }
 
+// ── Incremental embedding cache ───────────────────────────────────────────────
+
+function loadExistingEmbeddings() {
+  const chunksPath = path.join(OUT_DIR, "chunks.json");
+  const embedPath  = path.join(OUT_DIR, "embeddings.bin");
+  try {
+    const oldChunks = JSON.parse(fs.readFileSync(chunksPath, "utf8"));
+    const buf       = fs.readFileSync(embedPath);
+    const floats    = new Float32Array(buf.buffer, buf.byteOffset, buf.length / 4);
+    const dim       = floats.length / oldChunks.length;
+    const cache     = new Map();
+    oldChunks.forEach((c, i) => {
+      cache.set(c.id, Array.from(floats.subarray(i * dim, (i + 1) * dim)));
+    });
+    console.log(`  Loaded ${cache.size} cached embeddings (dim=${dim})`);
+    return cache;
+  } catch {
+    console.log("  No existing index found — embedding everything from scratch");
+    return new Map();
+  }
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -227,21 +311,35 @@ async function main() {
   const pageCount  = RCA_CONTEXT?.pages?.length ?? 0;
   console.log(`  ${chunks.length} chunks from ${instrCount} instruments, ${paperCount} papers, ${pageCount} RCA pages`);
 
-  // Embed in batches
-  const batchSize = CONFIG.batchSize || 25;
-  const allVecs   = [];
+  // Load existing embeddings cache to avoid re-embedding unchanged chunks
+  const cache    = loadExistingEmbeddings();
+  const toEmbed  = chunks.filter(c => !cache.has(c.id));
+  const reused   = chunks.length - toEmbed.length;
+  console.log(`  ${reused} chunks reused from cache, ${toEmbed.length} need embedding`);
 
-  for (let i = 0; i < chunks.length; i += batchSize) {
-    const batch = chunks.slice(i, i + batchSize);
-    console.log(`  Embedding batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(chunks.length / batchSize)}...`);
-    const vecs = await embedBatch(batch.map(c => c.embedText));
-    for (const v of vecs) allVecs.push(l2Normalize(v));
-    await new Promise(r => setTimeout(r, 15000)); // ~4 RPM to stay under rate limit
+  // Embed only new/changed chunks
+  const newVecMap = new Map();
+  if (toEmbed.length > 0) {
+    const batchSize = CONFIG.batchSize || 25;
+    for (let i = 0; i < toEmbed.length; i += batchSize) {
+      const batch = toEmbed.slice(i, i + batchSize);
+      const batchNum = Math.floor(i / batchSize) + 1;
+      const totalBatches = Math.ceil(toEmbed.length / batchSize);
+      console.log(`  Embedding batch ${batchNum}/${totalBatches} (${batch.length} chunks)...`);
+      const vecs = await embedBatch(batch.map(c => c.embedText));
+      batch.forEach((c, j) => newVecMap.set(c.id, l2Normalize(vecs[j])));
+      if (i + batchSize < toEmbed.length) {
+        await new Promise(r => setTimeout(r, 15000)); // stay under rate limit
+      }
+    }
   }
 
+  // Assemble final embeddings in chunk order
+  const allVecs = chunks.map(c => newVecMap.get(c.id) ?? cache.get(c.id));
+
   // Write embeddings.bin (Float32, row-major)
-  const dim  = allVecs[0].length;
-  const bin  = new Float32Array(allVecs.length * dim);
+  const dim = allVecs[0].length;
+  const bin = new Float32Array(allVecs.length * dim);
   allVecs.forEach((v, i) => bin.set(v, i * dim));
   fs.writeFileSync(path.join(OUT_DIR, "embeddings.bin"), Buffer.from(bin.buffer));
   console.log(`  embeddings.bin: ${allVecs.length} × ${dim}`);
@@ -256,7 +354,7 @@ async function main() {
   fs.writeFileSync(path.join(OUT_DIR, "search-index.json"), JSON.stringify(searchIdx));
   console.log(`  search-index.json: ${searchIdx.documents.length} documents`);
 
-  console.log("Done.");
+  console.log(`Done. (${reused} cached, ${toEmbed.length} newly embedded)`);
 }
 
 main().catch(e => { console.error(e); process.exit(1); });

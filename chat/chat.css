@@ -711,3 +711,93 @@ a.paper-card:hover { border-color: var(--teal); background: var(--paper-hover); 
   .chat-main { grid-template-columns: 1fr; padding: 1rem; }
   .context-panel { position: static; max-height: none; }
 }
+
+/* ── Mode bar ─────────────────────────────────────────────────────────────── */
+.mode-bar {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.75rem 0 0.25rem;
+  border-bottom: 1px solid var(--border-soft);
+  margin-bottom: 0.75rem;
+}
+.mode-btn {
+  padding: 0.3rem 0.9rem;
+  border-radius: 99px;
+  border: 1px solid var(--border-soft);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.mode-btn:hover { color: var(--teal); border-color: var(--teal); }
+.mode-btn.active {
+  background: var(--teal);
+  border-color: var(--teal);
+  color: #fff;
+}
+
+/* ── Script download card ─────────────────────────────────────────────────── */
+.script-card {
+  background: var(--surface);
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  margin-top: 0.5rem;
+}
+.script-card-label {
+  font-size: 0.65rem;
+  font-family: var(--font-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--teal);
+  margin-bottom: 0.5rem;
+}
+.script-summary { font-size: 0.9rem; margin-bottom: 0.75rem; color: var(--text); }
+.script-instr-list { margin-bottom: 0.75rem; }
+.script-instr-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  padding: 0.2rem 0;
+  border-bottom: 1px solid var(--border-soft);
+}
+.script-instr-row:last-child { border-bottom: none; }
+.script-instr-name { flex: 1; color: var(--text); }
+.script-instr-source {
+  font-size: 0.65rem;
+  font-family: var(--font-mono);
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+.script-meta {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-bottom: 0.9rem;
+}
+.script-meta strong { color: var(--text); }
+.btn-download-script {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 1rem;
+  background: var(--teal);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.btn-download-script:hover { opacity: 0.85; }
