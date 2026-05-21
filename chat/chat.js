@@ -24,6 +24,25 @@ let HISTORY = [];
 // ── Mode ──────────────────────────────────────────────────────────────────────
 let CURRENT_MODE = "ask"; // "ask" | "literature" | "data"
 
+// ── Rate limiter ──────────────────────────────────────────────────────────────
+// gemini-2.0-flash:      15 RPM free tier → 4s min between calls
+// gemini-2.0-flash-lite: 30 RPM free tier → 2s min between calls
+const RL = {
+  flash:     { ms: 4200, last: 0 },
+  flashLite: { ms: 2200, last: 0 },
+};
+
+async function throttle(model) {
+  const r = RL[model];
+  const wait = r.ms - (Date.now() - r.last);
+  if (wait > 0) {
+    setStatus(`Rate limiting — waiting ${(wait / 1000).toFixed(1)}s…`);
+    await new Promise(res => setTimeout(res, wait));
+    setStatus("");
+  }
+  r.last = Date.now();
+}
+
 // ── Boot ──────────────────────────────────────────────────────────────────────
 
 async function boot() {
@@ -141,6 +160,7 @@ async function showWelcome() {
   try {
     const papers  = CHUNKS.filter(c => c.type === "paper" && c.first_author && c.year);
     const samples = sampleDiversePapers(papers, 3);
+    await throttle("flashLite");
     const res = await workerPost("/welcome", {
       paperSamples: samples.map(p => ({ title: p.title, first_author: p.first_author, year: p.year })),
     });
@@ -251,6 +271,7 @@ async function workerGet(path) {
 }
 
 async function streamChat(query, context, history = []) {
+  await throttle("flash");
   const headers = { "Content-Type": "application/json" };
   if (PASSWORD) headers["Authorization"] = `Bearer ${PASSWORD}`;
   return fetch(WORKER_URL + "/chat", {
@@ -992,6 +1013,7 @@ async function handleNewQuery(query) {
     setStatus("Building data plan…");
 
     // Get AI acknowledgment — fast flash-lite call
+    await throttle("flashLite");
     const ack = await workerPost("/ack", {
       query,
       instruments: instrMatches.map(c => ({ name: c.name || c.title, location: c.location, type: c.type })),
@@ -1068,6 +1090,7 @@ async function proceedDataPull(query, context) {
     return true;
   });
 
+  await throttle("flashLite");
   const { plan, debug } = await workerPost("/plan", { query, context: planContext });
 
   if (!plan?.instruments?.length) {
