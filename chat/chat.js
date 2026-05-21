@@ -393,19 +393,17 @@ const PI_PAGES = {
   "PI-DAS25":        "http://piweb.ooirsn.uw.edu/das25/data/",
 };
 
-// OOI instrument class page by instrument type
+// OOI instrument class page by instrument type.
+// Only map types where the generic class slug matches all variants.
+// Types with diverse class codes (adcp, fluorometer, hpies, thermistor_array)
+// are intentionally omitted — the ref-designator fallback extracts the exact class.
 const OOI_CLASS_BY_TYPE = {
-  ctd:              "ctdpf",
-  adcp:             "adcpt",
   dissolved_oxygen: "dosta",
   pco2:             "pco2w",
   thermistor:       "thsph",
-  thermistor_array: "thsph",
   nitrate:          "nutnr",
   ph:               "phsen",
-  fluorometer:      "flort",
   pressure:         "botpt",
-  hpies:            "hpies",
 };
 
 function getInstrumentUrl(chunk) {
@@ -421,10 +419,10 @@ function getInstrumentUrl(chunk) {
   const typeSlug = OOI_CLASS_BY_TYPE[chunk.type];
   if (typeSlug) return `https://oceanobservatories.org/instrument-class/${typeSlug}/`;
 
-  // Fallback: extract class code from ref designator (5–6 uppercase letters)
+  // Fallback: extract class code from ref designator (5–6 alphanumeric chars, e.g. VEL3DA, CTDPFL)
   const segs = id.split("-");
   if (segs.length >= 4) {
-    const m = segs[segs.length - 1].match(/^([A-Z]{5,6})/);
+    const m = segs[segs.length - 1].match(/^([A-Z][A-Z0-9]{4,5})/);
     if (m) return `https://oceanobservatories.org/instrument-class/${m[1].toLowerCase()}/`;
   }
   return null;

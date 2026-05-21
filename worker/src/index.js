@@ -154,7 +154,7 @@ async function handleChat(req, env) {
       body: JSON.stringify(geminiReq),
     });
     if (upstream.status !== 429 && upstream.status !== 503) break;
-    const wait = [2000, 5000, 10000][attempt] ?? 10000;
+    const wait = [1000, 2000, 4000][attempt] ?? 4000;
     await new Promise(r => setTimeout(r, wait));
   }
 
@@ -244,16 +244,32 @@ Return ONLY valid JSON with this exact structure:
   "metadata_requested": ["instrument_info", "coverage_dates", "gaps", "units", "provenance"]
 }`;
 
-  const result = await retry(() =>
-    fetch(`${GEMINI_JSON_URL}?key=${env.GEMINI_API_KEY}`, {
+  let planResp;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    planResp = await fetch(`${GEMINI_JSON_URL}?key=${env.GEMINI_API_KEY}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ role: "user", parts: [{ text: planPrompt }] }],
         generationConfig: { temperature: 0.1, responseMimeType: "application/json" },
       }),
-    }).then(r => r.json())
-  );
+    });
+    if (planResp.status !== 429 && planResp.status !== 503) break;
+    const wait = [1000, 2000, 4000][attempt] ?? 4000;
+    await new Promise(r => setTimeout(r, wait));
+  }
+
+  if (!planResp.ok) {
+    const errBody = await planResp.text();
+    const msg = planResp.status === 429
+      ? "The AI model is rate-limited. Please wait a moment and try again."
+      : planResp.status === 503
+      ? "The AI model is temporarily unavailable. Please try again in a few seconds."
+      : `Gemini error ${planResp.status}: ${errBody.slice(0, 200)}`;
+    return new Response(JSON.stringify({ error: msg }), { status: planResp.status, headers: { ...cors(env), "Content-Type": "application/json" } });
+  }
+
+  const result = await planResp.json();
 
   // Detect Gemini API-level errors (quota, bad key, safety, etc.)
   if (result?.error) {
