@@ -712,29 +712,34 @@ async function handleNewQuery(query) {
     : hybridFuse(bm25, semantic);
   renderInstruments(context);
 
-  // DATA_REQUEST: skip streaming chat — show client-side affirmative then build plan
+  // DATA_REQUEST: get AI acknowledgment (cheap /ack call) then build plan
   if (intent === "DATA_REQUEST") {
     const seen = new Set();
-    const instrNames = context
+    const instrMatches = context
       .filter(c => !c.id.startsWith("paper::"))
       .filter(c => { const base = c.id.replace(/::.*$/, ""); return !seen.has(base) && seen.add(base); })
-      .map(c => c.name)
-      .filter(Boolean)
       .slice(0, 6);
 
-    const affirmEl = addMessage("assistant", "");
-    if (instrNames.length) {
-      affirmEl.innerHTML = renderMarkdown(
-        `Found **${instrNames.length}** matching instrument${instrNames.length !== 1 ? "s" : ""}:\n` +
-        instrNames.map(n => `- ${n}`).join("\n")
-      );
-    } else {
-      affirmEl.innerHTML = renderMarkdown("No matching instruments found for this request. Try rephrasing or check the example queries.");
+    if (!instrMatches.length) {
+      addMessage("assistant", "No matching instruments found for this request. Try rephrasing or check the example queries.");
       setStatus("");
       return;
     }
 
-    const affirmText = `Found instruments: ${instrNames.join(", ")}. Building data plan.`;
+    // Fire /ack immediately; render placeholder while it loads
+    const affirmEl = addMessage("assistant", "");
+    affirmEl.innerHTML = '<span class="thinking-indicator">Thinking<span class="thinking-dots"></span></span>';
+
+    setStatus("Building data plan…");
+
+    // Get AI acknowledgment — fast flash-lite call
+    const ack = await workerPost("/ack", {
+      query,
+      instruments: instrMatches.map(c => ({ name: c.name || c.title, location: c.location, type: c.type })),
+    }).then(r => r.ack || "").catch(() => "");
+    affirmEl.innerHTML = renderMarkdown(ack || instrMatches.map(c => `- ${c.name || c.title}`).join("\n"));
+
+    const affirmText = ack || `Found instruments: ${instrMatches.map(c => c.name || c.title).join(", ")}.`;
     HISTORY.push({ role: "user",  parts: [{ text: query      }] });
     HISTORY.push({ role: "model", parts: [{ text: affirmText }] });
     if (HISTORY.length > 16) HISTORY = HISTORY.slice(-16);
@@ -805,7 +810,7 @@ async function proceedDataPull(query, context) {
     return true;
   });
 
-  const { plan } = await workerPost("/plan", { query, context: planContext, catalog: INSTRUMENT_CATALOG });
+  const { plan } = await workerPost("/plan", { query, context: planContext });
 
   if (!plan?.instruments?.length) {
     setStatus("");

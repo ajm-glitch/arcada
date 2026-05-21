@@ -176,69 +176,37 @@ async function handleChat(req, env) {
 // ── /plan ─────────────────────────────────────────────────────────────────────
 // Converts a plain-language query + instrument context into a structured data plan
 async function handlePlan(req, env) {
-  const { query, context, catalog } = await req.json();
+  const { query, context } = await req.json();
   if (!query) return new Response("Missing query", { status: 400, headers: cors(env) });
 
-  // Separate instrument chunks from reference material (papers, site context)
+  // Only use instrument chunks (drop papers / site-context — not needed for plan)
   const REFERENCE_TYPES = new Set(["paper", "site-context"]);
   const instrChunks = (context || []).filter(c => !REFERENCE_TYPES.has(c.type));
-  const refChunks   = (context || []).filter(c =>  REFERENCE_TYPES.has(c.type));
 
-  // Build a map of valid instrument IDs from the catalog for post-plan validation
+  // Valid IDs are derived from the retrieved context, not a client-sent catalog
   const validInstruments = new Map(
-    (catalog || []).map(c => [c.id, c])
+    instrChunks.map(c => [c.id.replace(/::.*$/, ""), c])
   );
 
   const instrSummary = instrChunks.length
     ? instrChunks.map(c =>
-        `ID: ${c.id.replace(/::.*$/, "")}\nName: ${c.title || c.name}\nType: ${c.type}\nSource: ${c.source}\nLocation: ${c.location || ""}\nContext: ${c.text}`
-      ).join("\n\n")
-    : "No instruments retrieved — use the catalog below.";
-
-  const refSummary = refChunks.length
-    ? refChunks.map(c => `- ${c.title}: ${c.text.slice(0, 300)}`).join("\n")
-    : "";
-
-  const catalogSummary = validInstruments.size
-    ? [...validInstruments.values()].map(c =>
-        `${c.id} | ${c.title || c.name} | type:${c.type} | source:${c.source}`
+        `${c.id.replace(/::.*$/, "")} | ${c.title || c.name} | type:${c.type} | source:${c.source}${c.location ? ` | ${c.location}` : ""}`
       ).join("\n")
-    : "";
+    : "none";
 
-  const planPrompt = `${SYSTEM_PROMPT}
-
-Based on the following user request, produce a structured JSON data plan.
+  const planPrompt = `Extract a structured data plan from this request.
 
 User request: "${query}"
 
-INSTRUMENTS RETRIEVED (ranked by relevance — pick from these first):
+Available instruments (use IDs exactly as listed):
 ${instrSummary}
 
-${refSummary ? `SCIENCE CONTEXT (papers and background — do NOT use these IDs as instruments):
-${refSummary}
-
-` : ""}${catalogSummary ? `FULL INSTRUMENT CATALOG (authoritative — all valid instrument IDs):
-${catalogSummary}
-
-` : ""}You MUST only use instrument IDs that appear in the catalog above. Do not invent IDs.
-
-Return ONLY valid JSON with this exact structure:
+Return ONLY valid JSON:
 {
-  "summary": "One sentence describing what will be fetched",
-  "time_range": {
-    "start": "ISO8601 datetime",
-    "end": "ISO8601 datetime",
-    "notes": "any ambiguity or assumptions made"
-  },
+  "summary": "one sentence describing what will be fetched",
+  "time_range": { "start": "ISO8601", "end": "ISO8601", "notes": "assumptions if any" },
   "instruments": [
-    {
-      "id": "instrument id from catalog",
-      "name": "human readable name",
-      "type": "seismometer|pressure|ctd|hydrophone|pco2|thermistor|sonar|mass_spectrometer",
-      "source": "ooi_api|earthscope|pi_html",
-      "priority": "primary|supplementary",
-      "rationale": "why this instrument is relevant to the request"
-    }
+    { "id": "exact id from list above", "name": "human name", "type": "seismometer|pressure|ctd|hydrophone|pco2|thermistor|sonar|mass_spectrometer", "source": "ooi_api|earthscope|pi_html", "priority": "primary|supplementary", "rationale": "one phrase" }
   ],
   "output_format": "zarr",
   "metadata_requested": ["instrument_info", "coverage_dates", "gaps", "units", "provenance"]
@@ -406,6 +374,33 @@ async function handleStatus(runId, env) {
   }, { headers: cors(env) });
 }
 
+// ── /ack ──────────────────────────────────────────────────────────────────────
+// Returns a short conversational acknowledgment of a data request
+async function handleAck(req, env) {
+  const { query, instruments } = await req.json();
+  const instrList = (instruments || []).slice(0, 6)
+    .map(i => `${i.name}${i.location ? ` at ${i.location}` : ""}`)
+    .join(", ");
+
+  const prompt = `A researcher submitted this data request: "${query}"
+Matched instruments: ${instrList || "none found"}.
+
+In 1–2 sentences, confirm what you understood they're asking for — mention the instrument type, site, and time period if specified. Be natural and conversational. Do not make promises about data availability or say what you "will" do.`;
+
+  const resp = await fetch(`${GEMINI_JSON_URL}?key=${env.GEMINI_API_KEY}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0.5, maxOutputTokens: 100 },
+    }),
+  });
+
+  const data = await resp.json().catch(() => ({}));
+  const ack  = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
+  return Response.json({ ack }, { headers: cors(env) });
+}
+
 // ── Router ────────────────────────────────────────────────────────────────────
 export default {
   async fetch(req, env) {
@@ -427,6 +422,7 @@ export default {
     if (url.pathname === "/embed"    && req.method === "POST") return handleEmbed(req, env);
     if (url.pathname === "/welcome"  && req.method === "POST") return handleWelcome(req, env);
     if (url.pathname === "/chat"     && req.method === "POST") return handleChat(req, env);
+    if (url.pathname === "/ack"      && req.method === "POST") return handleAck(req, env);
     if (url.pathname === "/plan"     && req.method === "POST") return handlePlan(req, env);
     if (url.pathname === "/dispatch" && req.method === "POST") return handleDispatch(req, env);
 
