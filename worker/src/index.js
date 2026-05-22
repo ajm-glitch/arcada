@@ -6,13 +6,34 @@ const GEMINI_CHAT_URL  = "https://generativelanguage.googleapis.com/v1beta/model
 const GEMINI_JSON_URL  = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent";
 const GITHUB_API       = "https://api.github.com";
 
-// Fallback model chain for streaming /chat — tried in order on 429
-const CHAT_FALLBACK_MODELS = [
+// Fallback model chain — tried in order on 429 for both streaming and JSON endpoints
+const FALLBACK_MODELS = [
   "gemini-2.0-flash-lite",
   "gemini-2.0-flash",
 ];
 
 const MAX_CONTEXT_LEN = 20000; // chars — hard cap on context block before sending to Gemini
+
+// Shared helper: POST to Gemini generateContent with model fallback on 429
+async function geminiJson(apiKey, body) {
+  let resp;
+  for (const model of FALLBACK_MODELS) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      resp = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (resp.status !== 503) break;
+      const ra = resp.headers.get("Retry-After");
+      const wait = ra ? Math.max(1000, parseInt(ra, 10) * 1000) : ([1000, 2000][attempt] ?? 2000);
+      await new Promise(r => setTimeout(r, wait));
+    }
+    if (resp.status !== 429) break;
+  }
+  return resp;
+}
 
 const SYSTEM_PROMPT = `You are aRCADA, an expert data assistant for the OOI Regional Cabled Array (RCA) and EarthScope seafloor observatory networks on the Cascadia margin.
 
@@ -164,7 +185,7 @@ async function handleChat(req, env) {
   // Only retry 503 (transient overload) — never retry 429 (quota exhausted).
   // Retrying 429 multiplies consumption and deepens the rate-limit hole.
   let upstream;
-  for (const model of CHAT_FALLBACK_MODELS) {
+  for (const model of FALLBACK_MODELS) {
     const chatUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse`;
     for (let attempt = 0; attempt < 3; attempt++) {
       upstream = await fetch(`${chatUrl}&key=${env.GEMINI_API_KEY}`, {
@@ -234,21 +255,10 @@ Return ONLY valid JSON:
   "metadata_requested": ["instrument_info", "coverage_dates", "gaps", "units", "provenance"]
 }`;
 
-  let planResp;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    planResp = await fetch(`${GEMINI_JSON_URL}?key=${env.GEMINI_API_KEY}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: planPrompt }] }],
-        generationConfig: { temperature: 0.1, responseMimeType: "application/json" },
-      }),
-    });
-    if (planResp.status !== 503) break;
-    const ra = planResp.headers.get("Retry-After");
-    const wait = ra ? Math.max(1000, parseInt(ra, 10) * 1000) : ([1000, 2000][attempt] ?? 2000);
-    await new Promise(r => setTimeout(r, wait));
-  }
+  const planResp = await geminiJson(env.GEMINI_API_KEY, {
+    contents: [{ role: "user", parts: [{ text: planPrompt }] }],
+    generationConfig: { temperature: 0.1, responseMimeType: "application/json" },
+  });
 
   if (!planResp.ok) {
     const errBody = await planResp.text();
@@ -410,21 +420,10 @@ Matched instruments: ${instrList || "none found"}.
 
 In 1–2 sentences, confirm what you understood they're asking for — mention the instrument type, site, and time period if specified. Be natural and conversational. Do not make promises about data availability or say what you "will" do.`;
 
-  let ackResp;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    ackResp = await fetch(`${GEMINI_JSON_URL}?key=${env.GEMINI_API_KEY}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.5, maxOutputTokens: 100 },
-      }),
-    });
-    if (ackResp.status !== 503) break;
-    const ra = ackResp.headers.get("Retry-After");
-    const wait = ra ? Math.max(1000, parseInt(ra, 10) * 1000) : ([1000, 2000][attempt] ?? 2000);
-    await new Promise(r => setTimeout(r, wait));
-  }
+  const ackResp = await geminiJson(env.GEMINI_API_KEY, {
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    generationConfig: { temperature: 0.5, maxOutputTokens: 100 },
+  });
 
   const data = ackResp.ok ? await ackResp.json().catch(() => ({})) : {};
   let ack = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
