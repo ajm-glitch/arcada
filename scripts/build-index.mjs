@@ -17,6 +17,7 @@ const CONFIG       = JSON.parse(fs.readFileSync(path.join(ROOT, "rag-config.json
 const CATALOG      = JSON.parse(fs.readFileSync(path.join(ROOT, "catalog", "instruments.json"), "utf8"));
 const PI_PAGES     = JSON.parse(fs.readFileSync(path.join(ROOT, "catalog", "pi-pages.json"), "utf8"));
 const PAPERS       = loadOptional(path.join(ROOT, "catalog", "papers.json"));
+const PDF_CHUNKS   = loadOptional(path.join(ROOT, "catalog", "pdf-chunks.json"));
 const M2M_META     = loadOptional(path.join(ROOT, "catalog", "m2m-metadata.json"));
 const RCA_CONTEXT  = loadOptional(path.join(ROOT, "catalog", "rca-context.json"));
 const GEMINI_KEY   = process.env.GEMINI_API_KEY;
@@ -133,10 +134,42 @@ function makeChunks() {
     }
   }
 
-  // ── Zotero paper chunks ────────────────────────────────────────────────────
+  // ── PDF full-text chunks ───────────────────────────────────────────────────
+  // Papers with full-text chunks get richer coverage; track their DOIs so we
+  // don't also add the abstract-only Zotero chunk (redundant if full text exists).
+  const pdfCoveredDois = new Set();
+  if (PDF_CHUNKS) {
+    for (const c of PDF_CHUNKS.chunks) {
+      if (c.doi) pdfCoveredDois.add(c.doi);
+      const header = [
+        c.title,
+        c.first_author ? `${c.first_author}` : null,
+        c.year         ? `(${c.year})`        : null,
+        c.journal      ? `— ${c.journal}`     : null,
+      ].filter(Boolean).join(" ");
+      chunks.push({
+        id:           c.id,
+        title:        c.title,
+        type:         "paper",
+        source:       "pdf",
+        location:     null,
+        keywords:     c.tags || [],
+        year:         c.year || null,
+        journal:      c.journal || null,
+        first_author: c.first_author || null,
+        text:         c.text,
+        embedText:    `From "${header}":\n\n${c.text}`,
+        linked_instruments: c.linked_instruments || [],
+      });
+    }
+  }
+
+  // ── Zotero paper chunks (abstract-only fallback) ───────────────────────────
+  // Skipped for any paper that already has full-text PDF chunks above.
   if (PAPERS) {
     for (const paper of PAPERS.papers) {
       if (!paper.abstract || paper.abstract.length < 80) continue;
+      if (paper.doi && pdfCoveredDois.has(paper.doi)) continue;
       const yearStr = paper.year ? ` (${paper.year})` : "";
       const journalStr = paper.journal ? ` — ${paper.journal}` : "";
       const linkStr = paper.linked_instruments?.length
@@ -308,8 +341,9 @@ async function main() {
   const chunks = makeChunks();
   const instrCount = CATALOG.instruments.length + PI_PAGES.instruments.length;
   const paperCount = PAPERS?.papers?.length ?? 0;
+  const pdfCount   = PDF_CHUNKS?.chunks?.length ?? 0;
   const pageCount  = RCA_CONTEXT?.pages?.length ?? 0;
-  console.log(`  ${chunks.length} chunks from ${instrCount} instruments, ${paperCount} papers, ${pageCount} RCA pages`);
+  console.log(`  ${chunks.length} chunks from ${instrCount} instruments, ${paperCount} papers (${pdfCount} pdf chunks), ${pageCount} RCA pages`);
 
   // Load existing embeddings cache to avoid re-embedding unchanged chunks
   const cache    = loadExistingEmbeddings();
