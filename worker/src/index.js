@@ -408,17 +408,39 @@ async function handleStatus(runId, env) {
 }
 
 // ── /ack ──────────────────────────────────────────────────────────────────────
-// Returns a short conversational acknowledgment of a data request
+// Returns a short conversational acknowledgment. Accepts intent: "data" | "question" | "literature"
 async function handleAck(req, env) {
-  const { query, instruments } = await req.json();
-  const instrList = (instruments || []).slice(0, 6)
-    .map(i => `${i.name}${i.location ? ` at ${i.location}` : ""}`)
-    .join(", ");
+  const { query, instruments, intent = "data" } = await req.json();
+  const matches = (instruments || []).slice(0, 6);
 
-  const prompt = `A researcher submitted this data request: "${query}"
+  let prompt, fallback;
+
+  if (intent === "literature") {
+    const titles = matches.map(i => `"${i.name}"`).join(", ");
+    prompt = `A researcher asked about research on: "${query}"${titles ? `\nRelevant papers found: ${titles}.` : ""}
+
+In 1 sentence, acknowledge what literature topic you're about to summarize. Be direct and natural.`;
+    fallback = `Searching the literature on ${query.slice(0, 60).trim()}…`;
+
+  } else if (intent === "question") {
+    const topics = matches.map(i => `${i.name}${i.location ? ` at ${i.location}` : ""}`).join(", ");
+    prompt = `A researcher asked: "${query}"${topics ? `\nRelevant instruments/topics: ${topics}.` : ""}
+
+In 1 sentence, acknowledge the question naturally. Do not answer it — just confirm you understood it.`;
+    fallback = `Looking into that…`;
+
+  } else {
+    // data (default)
+    const instrList = matches.map(i => `${i.name}${i.location ? ` at ${i.location}` : ""}`).join(", ");
+    prompt = `A researcher submitted this data request: "${query}"
 Matched instruments: ${instrList || "none found"}.
 
 In 1–2 sentences, confirm what you understood they're asking for — mention the instrument type, site, and time period if specified. Be natural and conversational. Do not make promises about data availability or say what you "will" do.`;
+    const names = matches.slice(0, 3).map(i => i.name).filter(Boolean);
+    fallback = names.length
+      ? `Got it — looking for ${names.join(" and ")} data${instrList.includes(" at ") ? ` from the matched sites` : ""}.`
+      : `Got it — searching for relevant data based on your request.`;
+  }
 
   const ackResp = await geminiJson(env.GEMINI_API_KEY, {
     contents: [{ role: "user", parts: [{ text: prompt }] }],
@@ -426,15 +448,7 @@ In 1–2 sentences, confirm what you understood they're asking for — mention t
   });
 
   const data = ackResp.ok ? await ackResp.json().catch(() => ({})) : {};
-  let ack = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
-
-  // Template fallback if Gemini returned nothing
-  if (!ack) {
-    const names = (instruments || []).slice(0, 3).map(i => i.name).filter(Boolean);
-    ack = names.length
-      ? `Got it — looking for ${names.join(" and ")} data${instrList.includes(" at ") ? ` from the matched sites` : ""}.`
-      : `Got it — searching for relevant data based on your request.`;
-  }
+  const ack = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || fallback;
 
   return Response.json({ ack }, { headers: cors(env) });
 }

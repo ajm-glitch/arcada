@@ -691,8 +691,14 @@ function getInstrumentUrl(chunk) {
 }
 
 function getPaperUrl(chunk) {
-  const doi = chunk.id.replace(/^paper::/, "");
-  return doi.startsWith("10.") ? `https://doi.org/${doi}` : null;
+  // Prefer the explicit doi field (set for both abstract and PDF chunks)
+  if (chunk.doi) return `https://doi.org/${chunk.doi}`;
+  // Strip paper:: prefix and ::chunkN suffix from ID
+  const raw = chunk.id.replace(/^paper::/, "").replace(/::chunk\d+$/, "");
+  if (raw.startsWith("10.")) return `https://doi.org/${raw}`;
+  // Last resort: extract DOI from the text body (PDF chunks without matched metadata)
+  const m = (chunk.text || "").match(/https?:\/\/doi\.org\/(10\.[^\s,)\]]+)/);
+  return m ? `https://doi.org/${m[1]}` : null;
 }
 
 // ── Instrument / paper panel ──────────────────────────────────────────────────
@@ -733,8 +739,9 @@ function renderInstruments(chunks) {
     papersTitle.hidden   = false;
     const seenPaper = new Set();
     papers.forEach(c => {
-      if (seenPaper.has(c.id)) return;
-      seenPaper.add(c.id);
+      const basePaperId = c.id.replace(/::chunk\d+$/, "");
+      if (seenPaper.has(basePaperId)) return;
+      seenPaper.add(basePaperId);
       const url  = getPaperUrl(c);
       const card = document.createElement(url ? "a" : "div");
       card.className = "paper-card";
@@ -757,13 +764,14 @@ function buildCitation(chunk) {
   if (chunk.journal)      parts.push(abbreviateJournal(chunk.journal));
   if (chunk.year)         parts.push(chunk.year);
   if (parts.length)       return parts.join(" · ");
-  const firstLine    = (chunk.text || "").split("\n")[0];
-  const yearMatch    = firstLine.match(/\((\d{4})\)/);
-  const journalMatch = firstLine.match(/—\s*(.+)$/);
+  // PDF chunks without matched Zotero metadata: pull year and DOI from text
+  const text = chunk.text || "";
+  const yearMatch = text.match(/\b(20[0-2]\d|199\d)\b/);
+  const doiMatch  = text.match(/https?:\/\/doi\.org\/(10\.[^\s,)\]]+)/);
   const fb = [];
-  if (journalMatch) fb.push(abbreviateJournal(journalMatch[1].trim()));
-  if (yearMatch)    fb.push(yearMatch[1]);
-  return fb.join(" · ") || "Zotero";
+  if (doiMatch)       fb.push(`doi:${doiMatch[1].slice(0, 35)}`);
+  else if (yearMatch) fb.push(yearMatch[1]);
+  return fb.join(" · ") || "PDF";
 }
 
 const JOURNAL_ABBREVS = {
@@ -1016,8 +1024,25 @@ async function handleNewQuery(query) {
     return;
   }
 
-  // All other intents: stream conversational response
+  // All other intents: quick ack, then stream full response
   setStatus("Generating response…");
+
+  const ackEl = addMessage("assistant", "");
+  ackEl.innerHTML = '<span class="thinking-indicator">Thinking<span class="thinking-dots"></span></span>';
+
+  await throttle();
+  const preAckMatches = intent === "LITERATURE"
+    ? context.filter(c => c.type === "paper").slice(0, 4).map(c => ({ name: c.title }))
+    : context.filter(c => c.type !== "paper" && c.type !== "site-context" && c.type !== "script").slice(0, 4)
+        .map(c => ({ name: c.title || c.name, location: c.location }));
+  const preAck = await workerPost("/ack", {
+    query,
+    instruments: preAckMatches,
+    intent: intent === "LITERATURE" ? "literature" : "question",
+  }).then(r => r.ack || "").catch(() => "");
+  if (preAck) ackEl.innerHTML = renderMarkdown(preAck);
+  else ackEl.remove();
+
   const contentEl = addMessage("assistant", "");
   const historySnapshot = [...HISTORY];
   const fullText = await streamChatToElement(query, trimContext(context), contentEl, historySnapshot);
