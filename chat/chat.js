@@ -30,6 +30,12 @@ let CURRENT_MODE = "ask"; // "ask" | "literature" | "data"
 const RL_MS  = 2500;
 const RL_KEY = "rl_gemini_last";
 
+// ── Context size cap ──────────────────────────────────────────────────────────
+// Hard cap on total context text sent to Gemini. Prevents token bloat that
+// exhausts daily quotas; chunks are already ranked by relevance so we drop
+// the tail first. ~18k chars ≈ 4–5k tokens, well within flash-lite limits.
+const MAX_CONTEXT_CHARS = 18000;
+
 function rlGet() { return parseInt(sessionStorage.getItem(RL_KEY) || "0", 10); }
 function rlSet() { sessionStorage.setItem(RL_KEY, String(Date.now())); }
 
@@ -41,6 +47,18 @@ async function throttle() {
     setStatus("");
   }
   rlSet();
+}
+
+function trimContext(chunks, maxChars = MAX_CONTEXT_CHARS) {
+  let total = 0;
+  const out = [];
+  for (const c of chunks) {
+    const len = (c.text || "").length;
+    if (total + len > maxChars) break;
+    out.push(c);
+    total += len;
+  }
+  return out;
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
@@ -1002,7 +1020,7 @@ async function handleNewQuery(query) {
   setStatus("Generating response…");
   const contentEl = addMessage("assistant", "");
   const historySnapshot = [...HISTORY];
-  const fullText = await streamChatToElement(query, context, contentEl, historySnapshot);
+  const fullText = await streamChatToElement(query, trimContext(context), contentEl, historySnapshot);
   setStatus("");
 
   // Update history (cap at 8 turns = 16 entries)
@@ -1029,7 +1047,7 @@ async function handleClarificationReply(reply) {
   setStatus("Generating response…");
   const contentEl = addMessage("assistant", "");
   const historySnapshot = [...HISTORY];
-  const fullText = await streamChatToElement(reply, PENDING_CONTEXT || [], contentEl, historySnapshot);
+  const fullText = await streamChatToElement(reply, trimContext(PENDING_CONTEXT || []), contentEl, historySnapshot);
   setStatus("");
 
   HISTORY.push({ role: "user",  parts: [{ text: reply    }] });
@@ -1060,7 +1078,7 @@ async function proceedDataPull(query, context) {
   });
 
   await throttle();
-  const { plan, debug } = await workerPost("/plan", { query, context: planContext });
+  const { plan, debug } = await workerPost("/plan", { query, context: trimContext(planContext) });
 
   if (!plan?.instruments?.length) {
     setStatus("");

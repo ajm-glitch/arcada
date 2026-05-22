@@ -6,6 +6,14 @@ const GEMINI_CHAT_URL  = "https://generativelanguage.googleapis.com/v1beta/model
 const GEMINI_JSON_URL  = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent";
 const GITHUB_API       = "https://api.github.com";
 
+// Fallback model chain for streaming /chat — tried in order on 429
+const CHAT_FALLBACK_MODELS = [
+  "gemini-2.0-flash-lite",
+  "gemini-2.0-flash",
+];
+
+const MAX_CONTEXT_LEN = 20000; // chars — hard cap on context block before sending to Gemini
+
 const SYSTEM_PROMPT = `You are aRCADA, an expert data assistant for the OOI Regional Cabled Array (RCA) and EarthScope seafloor observatory networks on the Cascadia margin.
 
 ## Instruments you can access
@@ -130,9 +138,12 @@ async function handleChat(req, env) {
     ? `\n\n## Background\n${siteCtx.map(c => c.text).join("\n\n")}`
     : "";
 
-  const contextBlock = (instrBlock || paperBlock || siteBlock)
+  const rawContextBlock = (instrBlock || paperBlock || siteBlock)
     ? instrBlock + paperBlock + siteBlock
     : "";
+  const contextBlock = rawContextBlock.length > MAX_CONTEXT_LEN
+    ? rawContextBlock.slice(0, MAX_CONTEXT_LEN) + "\n[context truncated]"
+    : rawContextBlock;
 
   // Build multi-turn contents: history first, then the current user turn
   const contents = [];
@@ -149,18 +160,24 @@ async function handleChat(req, env) {
     generationConfig: { temperature: 0.3 },
   };
 
-  // No retry on 429 — client-side throttle owns rate pacing; retrying here
-  // just multiplies quota consumption and deepens the rate-limit hole.
-  // Only retry transient 503s (model overload), not quota errors.
+  // Model fallback: try flash-lite first, then flash on 429.
+  // Only retry 503 (transient overload) — never retry 429 (quota exhausted).
+  // Retrying 429 multiplies consumption and deepens the rate-limit hole.
   let upstream;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    upstream = await fetch(`${GEMINI_CHAT_URL}&key=${env.GEMINI_API_KEY}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(geminiReq),
-    });
-    if (upstream.status !== 503) break;
-    await new Promise(r => setTimeout(r, [1000, 2000][attempt] ?? 2000));
+  for (const model of CHAT_FALLBACK_MODELS) {
+    const chatUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse`;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      upstream = await fetch(`${chatUrl}&key=${env.GEMINI_API_KEY}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(geminiReq),
+      });
+      if (upstream.status !== 503) break;
+      const ra = upstream.headers.get("Retry-After");
+      const wait = ra ? Math.max(1000, parseInt(ra, 10) * 1000) : ([1000, 2000][attempt] ?? 2000);
+      await new Promise(r => setTimeout(r, wait));
+    }
+    if (upstream.status !== 429) break; // success or non-retriable error — stop trying models
   }
 
   if (!upstream.ok) {
@@ -228,7 +245,9 @@ Return ONLY valid JSON:
       }),
     });
     if (planResp.status !== 503) break;
-    await new Promise(r => setTimeout(r, [1000, 2000][attempt] ?? 2000));
+    const ra = planResp.headers.get("Retry-After");
+    const wait = ra ? Math.max(1000, parseInt(ra, 10) * 1000) : ([1000, 2000][attempt] ?? 2000);
+    await new Promise(r => setTimeout(r, wait));
   }
 
   if (!planResp.ok) {
@@ -402,7 +421,9 @@ In 1–2 sentences, confirm what you understood they're asking for — mention t
       }),
     });
     if (ackResp.status !== 503) break;
-    await new Promise(r => setTimeout(r, [1000, 2000][attempt] ?? 2000));
+    const ra = ackResp.headers.get("Retry-After");
+    const wait = ra ? Math.max(1000, parseInt(ra, 10) * 1000) : ([1000, 2000][attempt] ?? 2000);
+    await new Promise(r => setTimeout(r, wait));
   }
 
   const data = ackResp.ok ? await ackResp.json().catch(() => ({})) : {};
