@@ -241,7 +241,7 @@ async function onSubmit(e) {
         if (raw === "[DONE]") break;
         try {
           const chunk = JSON.parse(raw);
-          const text = chunk?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+          const text = chunk?.choices?.[0]?.delta?.content ?? "";
           fullText += text;
           contentEl.textContent = fullText;
         } catch { /* partial JSON — skip */ }
