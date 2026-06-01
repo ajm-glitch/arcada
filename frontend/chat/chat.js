@@ -217,11 +217,8 @@ async function onSubmit(e) {
 
   try {
     // 1. Hybrid retrieval
-    const [bm25, semantic] = await Promise.all([
-      bm25Search(query),
-      semanticSearch(query),
-    ]);
-    const context = hybridFuse(bm25, semantic);
+    const bm25 = bm25Search(query);
+    const context = bm25.slice(0, CONFIG.topK || 6).map(({idx}) => CHUNKS[idx]);
     renderInstruments(context);
 
     // 2. Stream conversational response
