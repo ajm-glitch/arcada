@@ -31,8 +31,14 @@ async function boot() {
     storeFields: ["id", "title", "type", "source", "location"],
     searchOptions: { boost: { title: 2, keywords: 1.5 }, fuzzy: 0.2 },
   });
+  const seen = new Set();
+  const uniqueChunks = CHUNKS.filter(c => {
+    if (seen.has(c.id)) return false;
+    seen.add(c.id);
+    return true;
+  });
   miniSearch.addAll(
-    CHUNKS.map((c, i) => ({ ...c, miniSearchId: i }))
+    uniqueChunks.map((c, i) => ({ ...c, miniSearchId: i }))
   );
 
   document.getElementById("inputForm").addEventListener("submit", onSubmit);
