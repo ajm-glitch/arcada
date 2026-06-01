@@ -20,8 +20,8 @@ async function boot() {
   EMBED_DIM  = CONFIG.embedDim || 768;
 
   [CHUNKS, EMBEDDINGS] = await Promise.all([
-    fetch("../../public/chunks.json").then(r => r.json()),
-    fetch("../../public/embeddings.bin")
+    fetch("/arcada/public/chunks.json").then(r => r.json()),
+    fetch("/arcada/public/embeddings.bin")
       .then(r => r.arrayBuffer())
       .then(buf => new Float32Array(buf)),
   ]);
